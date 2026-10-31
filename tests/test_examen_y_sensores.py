@@ -20,6 +20,9 @@ from iniciar_examen import cargar_config, argumentos, main as iniciar_examen
 from probar_choregraphe import main as probar_choregraphe
 from sensores_nao import BufferAudio, CamaraNAO, PeticionSensores, ServidorSensores, SensoresNAO
 from sensores_cliente import ClienteSensores, ErrorSensores, FlujoPCM, fuente_audio_nao
+from sensores_cliente import CamaraConRespaldo
+import iniciar_examen as modulo_examen
+import vision_ia
 try:
     import speech_recognition as sr_real
 except ImportError:
@@ -303,6 +306,180 @@ class PruebaDiagnosticoEnProcesos(unittest.TestCase):
             self.assertNotIn('ALMotion', llamadas)
             with self.assertRaises(OSError):
                 socket.create_connection(('127.0.0.1', puertos[1]), timeout=.2)
+
+
+class PruebasRespaldo(unittest.TestCase):
+    def test_fallo_fisico_intenta_virtual_con_fuentes_pc(self):
+        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 0]) as iniciar:
+            with patch('builtins.input', return_value='61778') as entrada, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(iniciar_examen(['--ip', '192.0.2.20', '--sin-ia']), 0)
+        primero, segundo = [c.args[0] for c in iniciar.call_args_list]
+        self.assertIn('192.0.2.20', primero)
+        self.assertIn('--camara-nao', primero)
+        self.assertIn('127.0.0.1', segundo)
+        self.assertIn('61778', segundo)
+        self.assertIn('virtual', segundo)
+        self.assertIn('--microfono', segundo)
+        self.assertNotIn('--camara-nao', segundo)
+        self.assertNotIn('--microfono-nao', segundo)
+        entrada.assert_called_once()
+
+    def test_no_cambia_destino_tras_cierre_error_local_o_cancelacion(self):
+        for codigo in (0, 1, 130):
+            with self.subTest(codigo=codigo), patch('iniciar_examen.iniciar_prueba', return_value=codigo) as iniciar:
+                with patch('builtins.input') as entrada, contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(iniciar_examen(['--ip', '192.0.2.20', '--sin-ia']), codigo)
+                iniciar.assert_called_once()
+                entrada.assert_not_called()
+
+    def test_fallo_del_virtual_no_crea_bucle_de_reintentos(self):
+        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 70]) as iniciar:
+            with patch('builtins.input') as entrada, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(iniciar_examen(['--ip', '192.0.2.20', '--puerto-virtual', '61778']), 70)
+            self.assertEqual(iniciar.call_count, 2)
+            entrada.assert_not_called()
+
+    def test_virtual_directo_no_pide_ip_fisica(self):
+        with patch('iniciar_examen.iniciar_prueba', return_value=0) as iniciar:
+            with patch('builtins.input') as entrada, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(iniciar_examen(['--virtual', '--puerto-virtual', '61778', '--diagnostico']), 0)
+        entrada.assert_not_called()
+        iniciar.assert_called_once()
+        self.assertIn('--solo-diagnostico', iniciar.call_args.args[0])
+        self.assertNotIn('--camara-nao', iniciar.call_args.args[0])
+
+    def test_puerto_virtual_invalido_no_conecta(self):
+        with patch('iniciar_examen.iniciar_prueba') as iniciar, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(iniciar_examen(['--virtual', '--puerto-virtual', '0']), 1)
+        iniciar.assert_not_called()
+
+    def test_perfil_anterior_conserva_respaldo_desactivado(self):
+        p = cargar_config()
+        p.pop('respaldo_choregraphe')
+        p.pop('puerto_virtual')
+        with tempfile.TemporaryDirectory() as t:
+            ruta = Path(t) / 'perfil.json'
+            ruta.write_text(json.dumps(p), encoding='utf-8')
+            self.assertFalse(cargar_config(ruta)['respaldo_choregraphe'])
+
+    def test_camara_fallida_conserva_microfono_nao(self):
+        def proxy(modulo, *args):
+            if modulo == 'ALVideoDevice':
+                raise RuntimeError('CAMARA_SIMULADA_AVERIADA')
+            return SimpleNamespace(systemVersion=lambda: 'SDK_SIMULADO', getOutputVolume=lambda: 60,
+                                   isAudioOutMuted=lambda: False)
+        def abrir_audio(sensores, *args):
+            sensores.audio = BufferAudio()
+            sensores.audio.recibir(1, 4, b'\0' * 8)
+        sensores = SensoresNAO()
+        with patch.dict(sys.modules, {'naoqi': SimpleNamespace(ALProxy=proxy)}):
+            with patch.object(SensoresNAO, 'abrir_microfono', autospec=True, side_effect=abrir_audio) as audio:
+                sensores.abrir('192.0.2.20', 9559, tolerar_fallos=True)
+        audio.assert_called_once()
+        self.assertIsNone(sensores.camara)
+        self.assertEqual(sensores.estado()['microfono']['paquetes'], 1)
+        self.assertIn('CAMARA_SIMULADA_AVERIADA', sensores.estado()['fallos']['camara'])
+        sensores.cerrar()
+
+    def test_microfono_fallido_conserva_camara_nao(self):
+        video = VideoFalso()
+        def proxy(modulo, *args):
+            return video if modulo == 'ALVideoDevice' else SimpleNamespace(
+                systemVersion=lambda: 'SDK_SIMULADO', getOutputVolume=lambda: 60, isAudioOutMuted=lambda: False)
+        sensores = SensoresNAO()
+        with patch.dict(sys.modules, {'naoqi': SimpleNamespace(ALProxy=proxy)}):
+            with patch.object(SensoresNAO, 'abrir_microfono', side_effect=OSError('MICROFONO_SIMULADO_AVERIADO')):
+                sensores.abrir('192.0.2.20', 9559, tolerar_fallos=True)
+        self.assertTrue(sensores.estado()['camara']['activa'])
+        self.assertIsNone(sensores.audio)
+        self.assertFalse(video.cerrado)
+        sensores.cerrar()
+        self.assertTrue(video.cerrado)
+
+    def test_camara_rota_sin_respaldo_mantiene_error(self):
+        def proxy(modulo, *args):
+            if modulo == 'ALVideoDevice':
+                raise RuntimeError('CAMARA_SIMULADA_AVERIADA')
+            return SimpleNamespace(systemVersion=lambda: 'SDK_SIMULADO', getOutputVolume=lambda: 60,
+                                   isAudioOutMuted=lambda: False)
+        with patch.dict(sys.modules, {'naoqi': SimpleNamespace(ALProxy=proxy)}):
+            with self.assertRaisesRegex(RuntimeError, 'CAMARA_SIMULADA_AVERIADA'):
+                SensoresNAO().abrir('192.0.2.20', 9559)
+
+    def test_camara_cambia_a_pc_una_vez_y_se_identifica(self):
+        from unittest.mock import Mock
+        remoto = Mock()
+        remoto.isOpened.return_value = True
+        remoto.read.side_effect = ErrorSensores('CAMARA_SIMULADA_INTERRUMPIDA')
+        pc = Mock()
+        pc.isOpened.return_value = True
+        pc.read.return_value = (True, 'IMAGEN_PC_SIMULADA')
+        cv = Mock(VideoCapture=Mock(return_value=pc))
+        with patch('sensores_cliente.ClienteSensores'), patch('sensores_cliente.CamaraRemota', return_value=remoto):
+            camara = CamaraConRespaldo(cv, origen='nao', permitir_respaldo=True)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(camara.read(), (True, 'IMAGEN_PC_SIMULADA'))
+            self.assertTrue(camara.cambio)
+            self.assertEqual(camara.origen, 'pc')
+            camara.read()
+        remoto.release.assert_called_once()
+        cv.VideoCapture.assert_called_once()
+        camara.release()
+        pc.release.assert_called_once()
+
+    def test_microfono_cae_a_pc_y_si_falla_quedan_teclas(self):
+        for error_pc in (False, True):
+            estado = {}
+            conexion = SimpleNamespace(closed=threading.Event())
+            errores = [ErrorSensores('MIC_NAO_SIMULADO'), OSError('MIC_PC_SIMULADO') if error_pc else None]
+            with self.subTest(error_pc=error_pc), patch('vision_ia.escuchar_fuente', side_effect=errores) as escuchar:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    vision_ia.escuchar(conexion, None, origen='nao', estado_microfono=estado, permitir_respaldo=True)
+                self.assertEqual([x.args[2] for x in escuchar.call_args_list], ['nao', 'pc'])
+                self.assertEqual(estado['origen'], 'no' if error_pc else 'pc')
+
+    def test_fallo_fisico_y_virtual_con_puente_tcp_real_y_sdk_simulado(self):
+        import os
+        from cliente_neo import ConexionNeo
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            sdk = SDK_DE_PROCESO.replace('def ALProxy(modulo, ip, port):\n',
+                'def ALProxy(modulo, ip, port):\n'
+                '    log({"ip":ip,"puerto":port,"modulo":modulo})\n'
+                '    if ip == "192.0.2.20": raise RuntimeError("DESTINO_FISICO_SIMULADO_CAIDO")\n')
+            (raiz / 'naoqi.py').write_text(sdk, encoding='utf-8')
+            log = raiz / 'sdk.jsonl'
+            perfil = cargar_config()
+            perfil.update(robot_ip='192.0.2.20', python_naoqi=sys.executable, puerto_virtual=61778)
+            sockets = [socket.socket() for _ in range(3)]
+            for s in sockets:
+                s.bind(('127.0.0.1', 0))
+            for clave, s in zip(('puerto_control', 'puerto_sensores', 'callback_port'), sockets):
+                perfil[clave] = s.getsockname()[1]
+                s.close()
+            ruta = raiz / 'perfil.json'
+            ruta.write_text(json.dumps(perfil), encoding='utf-8')
+            def cliente_prueba(comando, **kwargs):
+                self.assertIn('--respaldo-pc', comando)
+                self.assertNotIn('nao', comando)
+                conexion = ConexionNeo(port=perfil['puerto_control'])
+                try:
+                    conexion.esperar()
+                    self.assertEqual(conexion.hello['entorno'], 'virtual')
+                    self.assertFalse(conexion.hello['simulado'])  # Conexion real al SDK FALSO de este test.
+                    self.assertEqual(conexion.snapshot()['marcador'], {'neo': 0, 'jugador': 0})
+                    return 0
+                finally:
+                    conexion.cerrar()
+            with patch.dict(os.environ, {'PYTHONPATH': str(raiz), 'NEO_SDK_TEST_LOG': str(log)}):
+                with patch('probar_choregraphe.subprocess.call', side_effect=cliente_prueba), patch('builtins.input') as entrada:
+                    self.assertEqual(iniciar_examen(['--config', str(ruta), '--sin-ia']), 0)
+            entrada.assert_not_called()
+            llamadas = [json.loads(x) for x in log.read_text().splitlines()]
+            destinos = [x['ip'] for x in llamadas if isinstance(x, dict)]
+            self.assertEqual(destinos, ['192.0.2.20', '127.0.0.1', '127.0.0.1'])
+            with self.assertRaises(OSError):
+                socket.create_connection(('127.0.0.1', perfil['puerto_control']), timeout=.2)
 
 
 if __name__ == '__main__':

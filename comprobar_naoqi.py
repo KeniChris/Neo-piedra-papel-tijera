@@ -8,6 +8,8 @@ import traceback
 
 from naoqi_compat import cadena_naoqi
 
+FALLO_DESTINO = 70
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -47,7 +49,7 @@ def main():
             print('El SDK rechazo una llamada. Conserva este diagnostico completo para revisar sus argumentos y version.')
         else:
             print('Comprueba la IP, el puerto y que el robot virtual este iniciado.')
-        return 1
+        return FALLO_DESTINO
     print('NAOQI_OK: ALTextToSpeech.say termino sin error.')
     print('En el robot virtual comprueba la frase en Robot View o Dialog; puede no haber audio.')
     print('Esta prueba no consulta la IA ni mueve articulaciones.')

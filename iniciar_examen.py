@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from probar_choregraphe import main as iniciar_prueba, localizar_python_naoqi
+from comprobar_naoqi import FALLO_DESTINO
 
 CARPETA = Path(__file__).resolve().parent
 CONFIG_PREDETERMINADA = CARPETA / 'config' / 'neo_examen.json'
@@ -26,8 +27,14 @@ def cargar_config(ruta=CONFIG_PREDETERMINADA):
     requeridos = {'robot_ip', 'robot_port', 'modelo', 'choregraphe_version', 'python_naoqi', 'modelo_codex',
                   'camara', 'indice_camara_nao', 'microfono', 'voz', 'rondas', 'espera_jugada_seg',
                   'movimientos', 'puerto_control', 'puerto_sensores', 'callback_ip', 'callback_port', 'saludo_ia'}
-    if not isinstance(config, dict) or set(config) != requeridos:
+    if not isinstance(config, dict) or set(config) - {'respaldo_choregraphe', 'puerto_virtual'} != requeridos:
         raise ValueError('El perfil tiene campos faltantes o desconocidos. Usa config/neo_examen.json como referencia.')
+    config.setdefault('respaldo_choregraphe', False)
+    config.setdefault('puerto_virtual', None)
+    if type(config['respaldo_choregraphe']) is not bool:
+        raise ValueError('respaldo_choregraphe debe ser true o false.')
+    if config['puerto_virtual'] is not None:
+        validar_puerto_virtual(config['puerto_virtual'])
     for nombre in ('robot_port', 'puerto_control', 'puerto_sensores', 'callback_port'):
         if type(config[nombre]) is not int or not 1 <= config[nombre] <= 65535:
             raise ValueError('Puerto no valido: ' + nombre)
@@ -61,14 +68,22 @@ def validar_ip(valor):
     return valor
 
 
-def argumentos(config, diagnostico=False, sin_ia=False):
+def validar_puerto_virtual(valor):
+    if type(valor) is not int or not 1 <= valor <= 65535:
+        raise ValueError('El puerto virtual debe ser el entero que muestra Choregraphe en Preferences > Virtual Robot.')
+    return valor
+
+
+def argumentos(config, diagnostico=False, sin_ia=False, entorno='fisico'):
     if not config['robot_ip']:
         raise ValueError('Falta la IP actual del robot fisico.')
     resultado = ['--robot-ip', config['robot_ip'], '--robot-port', str(config['robot_port']),
         '--python-naoqi', config['python_naoqi'], '--puerto', str(config['puerto_control']),
         '--puerto-sensores', str(config['puerto_sensores']), '--callback-port', str(config['callback_port']),
         '--indice-camara-nao', str(config['indice_camara_nao']), '--rondas', str(config['rondas']),
-        '--espera', str(config['espera_jugada_seg']), '--vision']
+        '--espera', str(config['espera_jugada_seg']), '--vision', '--entorno', entorno]
+    if config.get('respaldo_choregraphe') or entorno == 'virtual':
+        resultado.append('--respaldo-pc')
     if config['camara'] == 'nao':
         resultado.append('--camara-nao')
     if config['microfono'] == 'nao':
@@ -88,6 +103,30 @@ def argumentos(config, diagnostico=False, sin_ia=False):
     return resultado
 
 
+def ejecutar_virtual(config, diagnostico=False, sin_ia=False):
+    puerto = config.get('puerto_virtual')
+    if puerto is None:
+        print('Abre Choregraphe con el robot virtual iniciado. Copia el puerto de Edit > Preferences > Virtual Robot.')
+        try:
+            puerto = int(input('Puerto ACTUAL del robot virtual de Choregraphe > ').strip())
+        except ValueError as error:
+            raise ValueError('El puerto virtual es un numero, no una IP.') from error
+    validar_puerto_virtual(puerto)
+    virtual = dict(config, robot_ip='127.0.0.1', robot_port=puerto, camara='pc',
+                   microfono='pc' if config['microfono'] != 'no' else 'no', callback_ip=None)
+    print('RESPALDO: CHOREGRAPHE VIRTUAL en 127.0.0.1:{}'.format(puerto), flush=True)
+    print('Camara y microfono: laptop. Voz: texto en Robot View/Dialog; el virtual puede no emitir audio.')
+    return iniciar_prueba(argumentos(virtual, diagnostico, sin_ia, entorno='virtual'))
+
+
+def ejecutar_con_respaldo(config, diagnostico=False, sin_ia=False):
+    resultado = iniciar_prueba(argumentos(config, diagnostico, sin_ia))
+    if resultado == FALLO_DESTINO and config.get('respaldo_choregraphe'):
+        print('El destino fisico fallo durante el arranque. Intentando una vez el virtual de Choregraphe.', flush=True)
+        return ejecutar_virtual(config, diagnostico, sin_ia)
+    return resultado
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=CONFIG_PREDETERMINADA)
@@ -96,6 +135,8 @@ def main(argv=None):
     parser.add_argument('--diagnostico', action='store_true', help='Conecta y comprueba voz y sensores sin iniciar el juego.')
     parser.add_argument('--movimientos', action='store_true')
     parser.add_argument('--sin-ia', action='store_true', help='Prueba explicita del juego sin un modelo de conversacion.')
+    parser.add_argument('--virtual', action='store_true', help='Ensaya directamente el respaldo de Choregraphe con fuentes PC.')
+    parser.add_argument('--puerto-virtual', type=int, help='Puerto actual del virtual; si falta, se pide al necesitarlo.')
     args = parser.parse_args(argv)
     try:
         config = cargar_config(args.config)
@@ -103,6 +144,8 @@ def main(argv=None):
             config['robot_ip'] = validar_ip(args.ip)
         if args.movimientos:
             config['movimientos'] = True
+        if args.puerto_virtual is not None:
+            config['puerto_virtual'] = validar_puerto_virtual(args.puerto_virtual)
         print('Perfil: {} | Choregraphe {} | puerto {}'.format(
             config['modelo'], config['choregraphe_version'], config['robot_port']))
         print('Fuentes: camara={} microfono={} voz={}'.format(config['camara'], config['microfono'], config['voz']))
@@ -114,6 +157,11 @@ def main(argv=None):
                 import speech_recognition
                 if config['microfono'] == 'pc':
                     speech_recognition.Microphone.get_pyaudio()
+                elif config['respaldo_choregraphe']:
+                    try:
+                        speech_recognition.Microphone.get_pyaudio()
+                    except (ImportError, AttributeError, OSError):
+                        print('AVISO: falta PyAudio para el microfono PC de respaldo; quedaran disponibles las teclas y T.')
             python_naoqi = localizar_python_naoqi(config['python_naoqi'])
             subprocess.run([python_naoqi, str(CARPETA / 'comprobar_naoqi.py'),
                             '--robot-port', str(config['robot_port']), '--solo-sdk'], check=True)
@@ -126,11 +174,15 @@ def main(argv=None):
             print('CONFIGURACION_OK: software disponible; no se conecto con el robot ni se consulto al modelo.')
             if not config['robot_ip']:
                 print('Pendiente para el examen: introducir la IP actual del robot.')
+            if config['respaldo_choregraphe'] and config['puerto_virtual'] is None:
+                print('Respaldo: el puerto actual de Choregraphe se pedira al necesitarlo.')
             return 0
+        os.environ['NEO_CODEX_MODEL'] = config['modelo_codex']
+        if args.virtual:
+            return ejecutar_virtual(config, args.diagnostico, args.sin_ia)
         if not config['robot_ip']:
             config['robot_ip'] = validar_ip(input('IP actual del NAO fisico > ').strip())
-        os.environ['NEO_CODEX_MODEL'] = config['modelo_codex']
-        return iniciar_prueba(argumentos(config, args.diagnostico, args.sin_ia))
+        return ejecutar_con_respaldo(config, args.diagnostico, args.sin_ia)
     except (ValueError, OSError, RuntimeError, ImportError, subprocess.CalledProcessError) as error:
         print('NO SE INICIO EL EXAMEN:', type(error).__name__, str(error))
         print('Para preparar las bibliotecas: python preparar_vision.py --examen')

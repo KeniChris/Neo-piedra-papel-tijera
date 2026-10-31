@@ -100,6 +100,53 @@ class CamaraRemota:
         self.cerrada = True
 
 
+class CamaraConRespaldo:
+    """Mantiene NAO mientras funcione y cambia una vez a la webcam autorizada."""
+    def __init__(self, cv2, origen='pc', fuente=0, puerto=5006, permitir_respaldo=False):
+        self.cv2, self.fuente = cv2, fuente
+        self.origen = origen
+        self.permitir_respaldo = permitir_respaldo
+        self.cambio = False
+        self.cap = None
+        try:
+            self.cap = CamaraRemota(ClienteSensores(puerto)) if origen == 'nao' else cv2.VideoCapture(fuente)
+            if origen == 'nao' and not self.cap.isOpened():
+                raise ErrorSensores('La camara NAO no esta activa.')
+        except (OSError, RuntimeError) as error:
+            if origen != 'nao' or not permitir_respaldo:
+                raise
+            self.activar_pc(error)
+
+    def activar_pc(self, error):
+        if self.cap:
+            self.cap.release()
+        print('RESPALDO CAMARA: {}. Intentando webcam PC.'.format(error), flush=True)
+        self.origen = 'pc'
+        self.cambio = True
+        self.cap = self.cv2.VideoCapture(self.fuente)
+        if not self.cap.isOpened():
+            raise ErrorSensores('La webcam PC de respaldo tampoco se pudo abrir.')
+
+    def isOpened(self):
+        return self.cap.isOpened()
+
+    def read(self):
+        try:
+            ok, frame = self.cap.read()
+            if self.origen == 'nao' and not ok:
+                raise ErrorSensores('La camara NAO dejo de entregar imagenes.')
+            return ok, frame
+        except (OSError, RuntimeError) as error:
+            if self.origen != 'nao' or not self.permitir_respaldo:
+                raise
+            self.activar_pc(error)
+            return self.cap.read()
+
+    def release(self):
+        if self.cap:
+            self.cap.release()
+
+
 class FlujoPCM:
     def __init__(self, cliente):
         self.cliente = cliente

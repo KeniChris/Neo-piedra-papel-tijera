@@ -1,3 +1,5 @@
 -r requirements_vision.txt
 # El microfono NAO entrega PCM por el SDK: no necesita PyAudio en la laptop.
 SpeechRecognition==3.14.3
+# Respaldo con el microfono de la laptop Windows; no se instala en Linux.
+PyAudio==0.2.14; sys_platform == "win32"

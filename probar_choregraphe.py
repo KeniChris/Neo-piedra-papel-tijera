@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 from sensores_cliente import ClienteSensores
+from comprobar_naoqi import FALLO_DESTINO
 
 CARPETA = Path(__file__).resolve().parent
 
@@ -96,6 +97,8 @@ def main(argv=None):
     parser.add_argument('--solo-diagnostico', action='store_true', help='Comprueba voz y fuentes elegidas sin iniciar la partida.')
     parser.add_argument('--saludo-ia', action='store_true')
     parser.add_argument('--sin-ia', action='store_true')
+    parser.add_argument('--respaldo-pc', action='store_true', help='Permite respaldo de sensores NAO con fuentes PC.')
+    parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
     parser.add_argument('--camara', default='0')
     parser.add_argument('--sin-comentarios', action='store_true')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos de la partida.')
@@ -123,6 +126,7 @@ def main(argv=None):
     print('Conexion NAOqi real: {}:{}'.format(args.robot_ip, args.robot_port), flush=True)
     print('Python NAOqi:', python_naoqi, flush=True)
     print('Python del cliente:', sys.executable, flush=True)
+    print('ENTORNO NAOqi:', args.entorno.upper(), flush=True)
     destino = ['--robot-ip', args.robot_ip, '--robot-port', str(args.robot_port)]
     try:
         comprobacion = subprocess.run(
@@ -130,7 +134,7 @@ def main(argv=None):
             cwd=str(CARPETA), timeout=20, check=False)
     except subprocess.TimeoutExpired:
         print('NAOqi no respondio en 20 segundos. Comprueba que Choregraphe este abierto y el puerto sea correcto.')
-        return 1
+        return FALLO_DESTINO
     except OSError as error:
         print('No se pudo iniciar el Python de NAOqi:', error)
         return 1
@@ -157,7 +161,8 @@ def main(argv=None):
     # codificacion. Los anuncios con "gané" o "tú" deben llegar completos.
     entorno_naoqi['PYTHONIOENCODING'] = 'utf-8'
     comando = [python_naoqi, '-u', str(CARPETA / 'robot_server_ia.py')] + destino
-    comando += ['--puerto', str(args.puerto), '--rondas', str(args.rondas), '--espera', str(args.espera)]
+    comando += ['--puerto', str(args.puerto), '--rondas', str(args.rondas), '--espera', str(args.espera),
+                '--entorno', args.entorno]
     if args.movimientos:
         comando.append('--movimientos')
     puente = None
@@ -183,25 +188,51 @@ def main(argv=None):
                 comando_sensor.append('--sin-camara')
             if not args.microfono_nao:
                 comando_sensor.append('--sin-microfono')
+            if args.respaldo_pc:
+                comando_sensor.append('--tolerar-fallos')
             sensor = subprocess.Popen(comando_sensor, cwd=str(CARPETA), stdout=subprocess.PIPE,
                                       stderr=subprocess.STDOUT, encoding='utf-8', errors='replace',
                                       bufsize=1, env=entorno_sensor)
             listo_sensor, lector_sensor = esperar_puente(sensor, timeout=20, marca='SENSORES_LISTOS')
             if not listo_sensor:
-                print('No se validaron los sensores NAO. Revisa FALLO SENSORES NAO. No se sustituyen por los del PC.')
-                return 1
+                print('No se pudo abrir el puente de sensores NAO. Revisa FALLO SENSORES NAO.')
+                return FALLO_DESTINO if args.respaldo_pc else 1
             cliente_sensores = ClienteSensores(args.puerto_sensores, token)
             estado_sensores = cliente_sensores.estado()
-            print('SENSORES_NAO_OK:', json.dumps(estado_sensores, ensure_ascii=False), flush=True)
+            print('SENSORES_NAO_PARCIAL:' if estado_sensores.get('fallos') else 'SENSORES_NAO_OK:',
+                  json.dumps(estado_sensores, ensure_ascii=False), flush=True)
+            if args.respaldo_pc:
+                if args.camara_nao and not estado_sensores.get('camara', {}).get('activa'):
+                    print('RESPALDO CAMARA: NAO no disponible; se intentara la webcam PC.', flush=True)
+                    args.camara_nao = False
+                if args.microfono_nao and not estado_sensores.get('microfono'):
+                    print('RESPALDO MICROFONO: NAO no disponible; se intentara el microfono PC. Teclas y T disponibles.', flush=True)
+                    args.microfono_nao = False
         else:
             estado_sensores = {'origen': 'pc', 'nota': 'No se probaron los sensores internos del NAO.'}
+        pruebas_pc = None
+        if args.solo_diagnostico and args.respaldo_pc:
+            from vision_ia import diagnosticar_fuentes_pc
+            pruebas_pc = diagnosticar_fuentes_pc(camara=args.vision and not args.camara_nao,
+                                               microfono=args.microfono and not args.microfono_nao,
+                                               indice=args.camara)
+            print('DIAGNOSTICO_PC:', json.dumps(pruebas_pc, ensure_ascii=False), flush=True)
+        fuentes = {'entorno': args.entorno, 'camara': 'nao' if args.camara_nao else ('pc' if args.vision else 'no'),
+                   'microfono': 'nao' if args.microfono_nao else ('pc' if args.microfono else 'no')}
+        print('FUENTES SELECCIONADAS:', json.dumps(fuentes, ensure_ascii=False), flush=True)
+        if args.entorno == 'fisico' and (fuentes['camara'] == 'pc' or fuentes['microfono'] == 'pc'):
+            print('MODO HIBRIDO: control/voz del NAO fisico y las fuentes PC indicadas arriba.', flush=True)
         carpeta_diagnostico = CARPETA / 'diagnosticos_locales'
         carpeta_diagnostico.mkdir(exist_ok=True)
         (carpeta_diagnostico / 'ultimo_examen.json').write_text(json.dumps({
             'robot_ip': args.robot_ip, 'robot_port': args.robot_port,
             'voz': {'servicio': 'ALTextToSpeech', 'solicitud_aceptada': True, 'audibilidad_confirmada': False},
-            'sensores': estado_sensores}, ensure_ascii=False, indent=2), encoding='utf-8')
+            'sensores': estado_sensores, 'fuentes': fuentes, 'pruebas_pc': pruebas_pc},
+            ensure_ascii=False, indent=2), encoding='utf-8')
         if args.solo_diagnostico:
+            if pruebas_pc and pruebas_pc.get('camara', {}).get('error'):
+                print('DIAGNOSTICO_INCOMPLETO: no hay imagen de respaldo. Revisa la webcam PC.')
+                return 1
             print('DIAGNOSTICO_COMPLETADO. La audibilidad y la precision de reconocimiento requieren observar la prueba.')
             return 0
         puente = subprocess.Popen(comando, cwd=str(CARPETA), stdout=subprocess.PIPE,
@@ -210,7 +241,7 @@ def main(argv=None):
         listo, lector = esperar_puente(puente)
         if not listo:
             print('El puente no llego a estar listo. Revisa los mensajes [NAOqi].')
-            return 1
+            return FALLO_DESTINO
         if args.vision:
             cliente = [sys.executable, '-u', str(CARPETA / 'vision_ia.py'),
                        '--puerto', str(args.puerto), '--camara', args.camara]
@@ -228,6 +259,8 @@ def main(argv=None):
                 cliente.append('--sin-ia')
             if args.sin_comentarios:
                 cliente.append('--sin-comentarios')
+            if args.respaldo_pc:
+                cliente.append('--respaldo-pc')
         else:
             cliente = [sys.executable, '-u', str(CARPETA / 'conversar.py'),
                        '--robot', '--puerto', str(args.puerto)]

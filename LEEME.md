@@ -16,8 +16,11 @@ comandos. La integracion de software esta probada con dobles del SDK;
 el ensayo en el robot fisico sigue pendiente.
 
 Los ejemplos anteriores de `probar_choregraphe.py --vision` que aparecen abajo
-conservan webcam y microfono PC. El perfil nuevo selecciona fuentes NAO de
-forma expresa y no las sustituye por fuentes PC si fallan.
+conservan webcam y microfono PC. El perfil nuevo intenta fuentes NAO y tiene
+respaldo autorizado: sensores PC ante fallos individuales y un intento con
+Choregraphe virtual si falla el destino al arrancar. El entorno y las fuentes
+activas se muestran expresamente. Usa `iniciar_examen.py --virtual` para
+ensayar con el virtual y los dispositivos de la laptop; pide su puerto actual.
 
 ## Actualizacion: Choregraphe y politicas editables
 
@@ -313,7 +316,7 @@ No constituye una prueba de voz, movimientos fisicos ni respuestas de un LLM.
 
 ## Validacion realizada
 
-Se ejecutaron 53 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
+Se ejecutaron 65 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
 las nueve combinaciones de jugadas, limite de rondas, empates, reintentos,
 marcador, captura identificada por ventana, conexion TCP local entre procesos,
 contexto antiguo, cancelacion de decisiones pendientes, comandos con negacion,

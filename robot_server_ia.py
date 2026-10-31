@@ -22,9 +22,10 @@ REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
 
 
 class Robot(object):
-    def __init__(self, ip, port, simular=False, movimientos=False):
+    def __init__(self, ip, port, simular=False, movimientos=False, entorno='configurado'):
         self.simular = simular
         self.movimientos = movimientos
+        self.entorno = entorno
         if not simular:
             from naoqi import ALProxy
             ip = cadena_naoqi(ip)
@@ -290,7 +291,7 @@ class Sesion(object):
         lector.daemon = True
         lector.start()
         self.enviar({'type': 'hello', 'protocol': 1, 'simulado': self.robot.simular,
-                     'movimientos': self.robot.movimientos})
+                     'movimientos': self.robot.movimientos, 'entorno': getattr(self.robot, 'entorno', 'configurado')})
         self.publicar()
         self.decir('Hola, soy Neo. Di empezar para jugar, o Neo seguido de una pregunta para conversar.')
         while not self.closed.is_set():
@@ -317,10 +318,11 @@ def main():
     parser.add_argument('--espera', type=float, default=3.0)
     parser.add_argument('--simular', action='store_true', help='Sin NAOqi: solo imprime lo que diria Neo.')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos del script original.')
+    parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
     args = parser.parse_args()
     if not 0.5 <= args.espera <= 10:
         parser.error('--espera debe estar entre 0.5 y 10 segundos.')
-    robot = Robot(args.robot_ip, args.robot_port, args.simular, args.movimientos)
+    robot = Robot(args.robot_ip, args.robot_port, args.simular, args.movimientos, args.entorno)
     servidor = socket.socket()
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     servidor.bind(('127.0.0.1', args.puerto))

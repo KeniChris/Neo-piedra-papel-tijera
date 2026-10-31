@@ -24,6 +24,7 @@ except ImportError:
     from urllib.parse import urlsplit, parse_qs
 
 from naoqi_compat import cadena_naoqi, TIPO_TEXTO
+from comprobar_naoqi import FALLO_DESTINO
 
 RELOJ = getattr(time, 'monotonic', time.time)
 
@@ -149,8 +150,10 @@ class SensoresNAO(object):
         self.callback_ip = None
         self.callback_port = None
         self.salida_audio = {'volumen': None, 'silenciado': None}
+        self.fallos = {}
 
-    def abrir(self, ip, port, camara=True, microfono=True, indice=0, callback_ip=None, callback_port=5007):
+    def abrir(self, ip, port, camara=True, microfono=True, indice=0, callback_ip=None, callback_port=5007,
+              tolerar_fallos=False):
         from naoqi import ALProxy
         ip_sdk = cadena_naoqi(ip)
         try:
@@ -166,42 +169,63 @@ class SensoresNAO(object):
         if self.salida_audio['volumen'] == 0 or self.salida_audio['silenciado'] is True:
             raise RuntimeError('La salida de audio del NAO esta silenciada o con volumen cero. Ajustala antes de jugar.')
         if camara:
-            self.camara = CamaraNAO(ALProxy(cadena_naoqi('ALVideoDevice'), ip_sdk, int(port)), indice)
-            self.camara.frame()
+            try:
+                self.camara = CamaraNAO(ALProxy(cadena_naoqi('ALVideoDevice'), ip_sdk, int(port)), indice)
+                self.camara.frame()
+            except Exception as error:
+                if self.camara:
+                    try:
+                        self.camara.cerrar()
+                    except Exception:
+                        pass
+                    self.camara = None
+                if not tolerar_fallos:
+                    raise
+                self.fallos['camara'] = '{}: {}'.format(type(error).__name__, error)
         if microfono:
-            from naoqi import ALBroker, ALModule
-            self.audio = BufferAudio()
-            self.callback_ip = callback_ip or ip_hacia(ip, port)
-            self.callback_port = int(callback_port)
-            self.broker = ALBroker(cadena_naoqi('NeoBroker_{}'.format(os.getpid())),
-                cadena_naoqi(self.callback_ip), self.callback_port, ip_sdk, int(port))
-            receptor = self.audio
+            try:
+                self.abrir_microfono(ip, port, callback_ip, callback_port)
+            except Exception as error:
+                self.cerrar_audio()
+                self.audio = None
+                if not tolerar_fallos:
+                    raise
+                self.fallos['microfono'] = '{}: {}'.format(type(error).__name__, error)
 
-            class ModuloAudio(ALModule):
-                def __init__(self, nombre):
-                    ALModule.__init__(self, cadena_naoqi(nombre))
+    def abrir_microfono(self, ip, port, callback_ip, callback_port):
+        from naoqi import ALProxy, ALBroker, ALModule
+        self.audio = BufferAudio()
+        self.callback_ip = callback_ip or ip_hacia(ip, port)
+        self.callback_port = int(callback_port)
+        self.broker = ALBroker(cadena_naoqi('NeoBroker_{}'.format(os.getpid())),
+            cadena_naoqi(self.callback_ip), self.callback_port, cadena_naoqi(ip), int(port))
+        receptor = self.audio
 
-                def processRemote(self, nbOfChannels, nbrOfSamplesByChannel, timeStamp, inputBuffer):
-                    """Recibe los paquetes PCM de ALAudioDevice."""
-                    receptor.recibir(nbOfChannels, nbrOfSamplesByChannel, inputBuffer)
+        class ModuloAudio(ALModule):
+            def __init__(self, nombre):
+                ALModule.__init__(self, cadena_naoqi(nombre))
 
-            self.nombre_audio = 'NeoMicrofono_{}'.format(os.getpid())
-            self.modulo = ModuloAudio(self.nombre_audio)
-            # El SDK clasico busca el objeto Python en el espacio global.
-            setattr(sys.modules['__main__'], self.nombre_audio, self.modulo)
-            self.proxy_audio = ALProxy(cadena_naoqi('ALAudioDevice'), ip_sdk, int(port))
-            # FRONTCHANNEL = 3; mono, 16 kHz, PCM16.
-            self.proxy_audio.setClientPreferences(cadena_naoqi(self.nombre_audio), 16000, 3, 0)
-            self.proxy_audio.subscribe(cadena_naoqi(self.nombre_audio))
-            self.suscrito_audio = True
-            fin = RELOJ() + 5
-            with self.audio.condicion:
-                while not self.audio.secuencia and not self.audio.error and RELOJ() < fin:
-                    self.audio.condicion.wait(0.1)
-            if not self.audio.secuencia or self.audio.error:
-                raise RuntimeError('No llegaron muestras del microfono NAO. Revisa la IP de retorno {} y '
-                                   'el puerto {} del Python NAOqi en la red privada de Windows.'.format(
-                                       self.callback_ip, self.callback_port))
+            def processRemote(self, nbOfChannels, nbrOfSamplesByChannel, timeStamp, inputBuffer):
+                """Recibe los paquetes PCM de ALAudioDevice."""
+                receptor.recibir(nbOfChannels, nbrOfSamplesByChannel, inputBuffer)
+
+        self.nombre_audio = 'NeoMicrofono_{}'.format(os.getpid())
+        self.modulo = ModuloAudio(self.nombre_audio)
+        # El SDK clasico busca el objeto Python en el espacio global.
+        setattr(sys.modules['__main__'], self.nombre_audio, self.modulo)
+        self.proxy_audio = ALProxy(cadena_naoqi('ALAudioDevice'), cadena_naoqi(ip), int(port))
+        # FRONTCHANNEL = 3; mono, 16 kHz, PCM16.
+        self.proxy_audio.setClientPreferences(cadena_naoqi(self.nombre_audio), 16000, 3, 0)
+        self.suscrito_audio = True
+        self.proxy_audio.subscribe(cadena_naoqi(self.nombre_audio))
+        fin = RELOJ() + 5
+        with self.audio.condicion:
+            while not self.audio.secuencia and not self.audio.error and RELOJ() < fin:
+                self.audio.condicion.wait(0.1)
+        if not self.audio.secuencia or self.audio.error:
+            raise RuntimeError('No llegaron muestras del microfono NAO. Revisa la IP de retorno {} y '
+                               'el puerto {} del Python NAOqi en la red privada de Windows.'.format(
+                                   self.callback_ip, self.callback_port))
 
     def estado(self):
         return {'origen': 'nao', 'version_naoqi': self.version,
@@ -209,9 +233,9 @@ class SensoresNAO(object):
                 'camara': {'activa': self.camara is not None,
                            'tamano': self.camara.ultimo_tamano if self.camara else None},
                 'microfono': self.audio.estado() if self.audio else None,
-                'callback_ip': self.callback_ip, 'callback_port': self.callback_port}
+                'callback_ip': self.callback_ip, 'callback_port': self.callback_port, 'fallos': self.fallos}
 
-    def cerrar(self):
+    def cerrar_audio(self):
         if self.suscrito_audio:
             try:
                 self.proxy_audio.unsubscribe(cadena_naoqi(self.nombre_audio))
@@ -227,6 +251,9 @@ class SensoresNAO(object):
         if self.nombre_audio and hasattr(sys.modules['__main__'], self.nombre_audio):
             delattr(sys.modules['__main__'], self.nombre_audio)
         self.modulo = None
+
+    def cerrar(self):
+        self.cerrar_audio()
         if self.camara:
             try:
                 self.camara.cerrar()
@@ -305,6 +332,7 @@ def main():
     parser.add_argument('--sin-microfono', action='store_true')
     parser.add_argument('--callback-ip')
     parser.add_argument('--callback-port', type=int, default=5007)
+    parser.add_argument('--tolerar-fallos', action='store_true', help='Informa fallos por sensor para el respaldo PC autorizado.')
     args = parser.parse_args()
     token = os.environ.get('NEO_SENSORES_TOKEN', '')
     if not token:
@@ -312,7 +340,8 @@ def main():
     sensores, servidor = SensoresNAO(), None
     try:
         sensores.abrir(args.robot_ip, args.robot_port, not args.sin_camara,
-                       not args.sin_microfono, args.indice_camara, args.callback_ip, args.callback_port)
+                       not args.sin_microfono, args.indice_camara, args.callback_ip, args.callback_port,
+                       args.tolerar_fallos)
         servidor = ServidorSensores(('127.0.0.1', args.puerto), PeticionSensores)
         servidor.sensores, servidor.token = sensores, token
         print('Sensores NAO:', json.dumps(sensores.estado(), ensure_ascii=True))
@@ -324,7 +353,7 @@ def main():
     except Exception as error:
         print('FALLO SENSORES NAO:', type(error).__name__, repr(error))
         traceback.print_exc()
-        return 1
+        return FALLO_DESTINO
     finally:
         if servidor:
             servidor.server_close()

@@ -74,7 +74,10 @@ class ConexionNeo:
                 tipo = dato.get('type')
                 if tipo == 'hello':
                     self.hello = dato
-                    print('Robot SIMULADO' if dato.get('simulado') else 'Puente NAOqi conectado')
+                    if dato.get('entorno') == 'virtual':
+                        print('CHOREGRAPHE VIRTUAL conectado: voz visible en Robot View/Dialog.')
+                    else:
+                        print('Robot SIMULADO' if dato.get('simulado') else 'Puente NAOqi conectado')
                 elif tipo == 'state':
                     with self.lock:
                         self.estado = dato['state']

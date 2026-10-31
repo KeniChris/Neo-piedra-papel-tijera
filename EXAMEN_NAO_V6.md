@@ -21,6 +21,7 @@ un antecedente útil, pero usaban otro programa.
 | Voz del robot | `ALTextToSpeech`, solicita idioma Spanish |
 | Partida | 3 rondas válidas; ventana de jugada de 3 segundos |
 | Movimientos | Desactivados; se activan expresamente con `--movimientos` |
+| Respaldo | Activado: sensores PC y un intento con Choregraphe virtual si falla el destino físico al arrancar |
 
 La captura del chat describe **Gemini generando un audio que el robot reproduce**.
 Este proyecto usa la voz nativa del NAO para leer el texto generado por Luna;
@@ -50,15 +51,23 @@ no abre cámara ni micrófono y no hace una consulta al modelo. Si aún falta
 configurar Codex, sigue [LEEME.md](LEEME.md); no copies credenciales entre laptops.
 Si tu SDK está en otra ruta, cambia `python_naoqi` en el JSON.
 
-Puedes seguir ensayando en el Choregraphe virtual con la webcam y las teclas:
+Puedes ensayar ahora todo el respaldo con Choregraphe virtual, webcam y
+micrófono de la laptop:
 
 ```powershell
-.\.venv_neo\Scripts\python.exe probar_choregraphe.py --robot-ip 127.0.0.1 --robot-port 61778 --vision
+.\.venv_neo\Scripts\python.exe iniciar_examen.py --virtual
 ```
 
-61778 fue el puerto virtual que funcionó en esta laptop; copia el actual de
-Preferences > Virtual Robot si cambia. Ese ensayo conserva fuentes PC y no
-valida los sensores del robot físico.
+Abre el robot virtual de Choregraphe. El programa pide su puerto **actual**,
+visible en Edit > Preferences > Virtual Robot > NAOqi state. 61778 fue el que
+funcionó antes; no se supone que siga siendo ese. Este modo no pide la IP del
+NAO físico. La voz del virtual aparece como texto en Robot View/Dialog y puede
+no reproducirse como audio. Ese ensayo no valida sensores ni audio del físico.
+
+Puedes guardar el puerto actual en `puerto_virtual` del JSON o pasarlo con
+`--puerto-virtual`. Si se queda en `null`, se pide al necesitar el virtual.
+La preparación de examen instala PyAudio en Windows para el micrófono PC.
+Si ese micrófono falla, permanecen disponibles las teclas y T.
 
 ## Al llegar al robot
 
@@ -82,6 +91,13 @@ Comprueba `NAOQI_OK`, `SENSORES_NAO_OK` y `DIAGNOSTICO_COMPLETADO`. Además,
 por sí solo que se haya escuchado. Recibir paquetes de audio tampoco demuestra
 que se entiendan bien las palabras. El resumen queda en
 `diagnosticos_locales/ultimo_examen.json`, sin grabaciones ni imágenes.
+
+Si aparece `SENSORES_NAO_PARCIAL`, revisa `FUENTES SELECCIONADAS`: se ha activado
+el respaldo de algún sensor. En ese caso el diagnóstico también intenta recibir
+una imagen o muestras del PC para las fuentes que haya sustituido. Una webcam
+PC que no entrega imágenes impide completar el diagnóstico; un micrófono PC
+que falle deja el control por teclado. El archivo de resultados distingue el
+destino NAOqi, las fuentes elegidas y qué pruebas PC pasaron.
 
 Si ese paso termina bien, abre la demostración:
 
@@ -124,6 +140,30 @@ no es una parada de emergencia del robot.
 
 ## Si falla algo ese día
 
+Con `respaldo_choregraphe: true`, el perfil aplica este orden:
+
+| Fallo | Respaldo |
+| --- | --- |
+| Conexión, voz o puente del destino físico durante el arranque | Cierra ese intento e intenta una vez el NAOqi virtual de Choregraphe; usa sensores PC y pide el puerto virtual si falta. |
+| Cámara NAO | Intenta webcam PC y conserva voz/control y micrófono NAO si funcionan. |
+| Micrófono NAO | Intenta micrófono PC y conserva cámara y voz/control que funcionen. |
+| Micrófono PC | Muestra el fallo y deja teclas/T disponibles. |
+| Cámara PC | Informa el fallo; no genera una imagen de prueba para simular reconocimiento. |
+
+Si la cámara NAO deja de enviar imágenes durante la partida, cambia una vez a
+PC, borra la cuenta de detecciones y solicita pausa. Pulsa C para reintentar
+después de la pausa. El cambio de sensor conserva la sesión y el marcador.
+Si falla el control/voz física durante una partida ya iniciada, conserva la
+pausa/error del puente; puedes cerrar y lanzar `--virtual` para una demostración
+nueva. El cambio completo al virtual al arrancar inicia una sesión nueva.
+Cerrar normalmente, cancelar o un fallo local de dependencias no dispara el
+cambio de destino. Si el virtual tampoco conecta, muestra el error y termina.
+
+El modo y las fuentes reales aparecen en la ventana y la consola. El respaldo
+virtual permite ensayar el software; no repara la cámara, el audio o la conexión
+del robot físico. Si `say` termina sin error pero no se oye, compruébalo en el
+robot: esa falta de audibilidad no puede detectarse solo con la respuesta del SDK.
+
 | Síntoma | Qué revisar |
 | --- | --- |
 | No conecta con NAOqi | IP física, puerto 9559 y acceso entre laptop y robot. Un puerto del virtual no sirve para el físico. |
@@ -136,9 +176,10 @@ no es una parada de emergencia del robot.
 | Puerto local ocupado | Cierra la ejecución anterior. Control 5005, sensores 5006 y callback 5007 tienen que ser distintos y estar disponibles. |
 
 Puedes elegir webcam cambiando `camara` a `pc` en el JSON, o teclado cambiando
-`microfono` a `no`. Si eliges micrófono `pc`, ese entorno necesita además PyAudio.
-Los cambios son expresos: el programa no cambia a sensores PC cuando falla un
-sensor NAO.
+`microfono` a `no`. El micrófono `pc` necesita PyAudio. Para desactivar todos
+los cambios automáticos, configura `respaldo_choregraphe` como `false`.
+El lanzador manual mantiene el comportamiento estricto salvo que se le añada
+`--respaldo-pc`.
 
 ## Alcance de la demostración
 
@@ -147,11 +188,14 @@ el estado del juego. No predice una jugada futura, no detecta presión ni usa
 el reloj. Codex recibe texto y estado; la transcripción de voz se envía a
 Google. No se envían las imágenes de la cámara al modelo conversacional.
 
-Pasaron **53 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
+Pasaron **65 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
 simulada, transporte local de imágenes y PCM, descarte de audio antiguo,
 suscripciones y cierre de procesos. Una prueba usa SpeechRecognition real
 con PCM sintético; se omite si no está instalado. También se ejecutó MediaPipe
-Hands con una imagen vacía en Linux. Ninguna sustituye el ensayo en el salón.
+Hands con una imagen vacía en Linux. Las pruebas de respaldo incluyen un fallo
+del destino físico simulado seguido de conexión TCP real al puente de un SDK
+falso, sin dispositivos ni consultas a un modelo real. Ninguna sustituye el
+ensayo en el salón.
 
 Referencias: [ALVideoDevice 2.8](https://doc.aldebaran.com/2-8/naoqi/vision/alvideodevice-api.html),
 [ALAudioDevice](https://doc.aldebaran.com/2-5/naoqi/audio/alaudiodevice-api.html)
