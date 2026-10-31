@@ -10,6 +10,18 @@ y reglas geométricas clasifican el gesto visible como piedra, papel o tijera.
 **El modelo de anticipación propuesto todavía no está implementado ni entrenado.**
 Neo elige al azar antes de observar la jugada del participante.
 
+## Modo de examen con el robot físico
+
+Sigue **[EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md)**. El perfil usa NAO V6,
+Choregraphe 2.8.7.4, puerto 9559, cámara y micrófono del robot y voz nativa
+`ALTextToSpeech`. La IP se pide al ejecutar. Prepara la laptop sin robot con
+`python preparar_vision.py --examen` y comprueba después
+`.\.venv_neo\Scripts\python.exe iniciar_examen.py --verificar-config`.
+
+El día del examen, ejecuta primero `iniciar_examen.py --diagnostico` con ese
+Python; si pasa, ejecuta `iniciar_examen.py`. La integración de sensores está
+probada con SDK simulado; **la validación física sigue pendiente**.
+
 ## Puesta en marcha en Windows
 
 Se usan dos intérpretes: Python 3.11 de 64 bits para cámara y conversación,
@@ -51,6 +63,8 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 
 | Archivo | Propósito |
 | --- | --- |
+| [EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md) | Preparación sin robot y diagnóstico el día del examen |
+| [config/neo_examen.json](config/neo_examen.json) | Perfil de robot, fuentes de sensores y modelo |
 | [POLITICAS_NEO.md](POLITICAS_NEO.md) | Personalidad y reglas de conversación; se recarga por consulta |
 | [PRUEBAS_CHOREGRAPHE.md](PRUEBAS_CHOREGRAPHE.md) | Pruebas del virtual y entrega al compañero para el robot físico |
 | [LEEME.md](LEEME.md) | Arquitectura, instalación y detalles de funcionamiento |
@@ -64,15 +78,16 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 - El usuario obtuvo una respuesta real de Codex con `gpt-6-luna` en su laptop.
 - El usuario confirmó `PROXY_OK` y `NAOQI_OK` en su Choregraphe y ejecutó
   cuenta atrás y pausa automática.
-- Pasaron 39 pruebas automatizadas con dobles de CLI/API/SDK, sin hardware.
+- Pasaron 53 pruebas automatizadas, con CLI/API/SDK simulados y transporte
+  local real; SpeechRecognition se comprobó con PCM sintético, sin hardware.
 - MediaPipe Hands se instaló y procesó un fotograma vacío en Linux/Python 3.12;
   se comprobó la resolución de dependencias para Windows x64/Python 3.11.
 - Falta comprobar con este entorno la webcam y el micrófono de la laptop,
   una respuesta de Luna enviada por el puente y la ejecución en el robot físico.
 
-La cámara utilizada actualmente es la webcam de la laptop. El micrófono
-opcional también es el de la laptop. La cámara interna y los micrófonos del
-NAO no se han integrado en este paquete. No hay transmisión desde el reloj.
+El lanzador anterior conserva webcam y micrófono PC como fuentes por defecto.
+El modo de examen selecciona cámara y micrófono NAO mediante un puente del
+SDK, sin cambiar automáticamente a fuentes PC. No hay transmisión desde el reloj.
 
 ## Desarrollo
 

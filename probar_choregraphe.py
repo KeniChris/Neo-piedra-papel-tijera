@@ -5,13 +5,16 @@ Usa una conexion REAL a NAOqi, como prueba.py; no es el modo --simular.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
+import secrets
 import socket
 import subprocess
 import sys
 import threading
+from sensores_cliente import ClienteSensores
 
 CARPETA = Path(__file__).resolve().parent
 
@@ -34,14 +37,14 @@ def puerto_libre(puerto):
     return True
 
 
-def esperar_puente(proceso, timeout=15):
+def esperar_puente(proceso, timeout=15, marca='PUENTE_LISTO'):
     listo = threading.Event()
     terminado = threading.Event()
 
     def mostrar_salida():
         try:
             for linea in proceso.stdout:
-                if linea.strip() == 'PUENTE_LISTO':
+                if linea.strip() == marca:
                     listo.set()
                 else:
                     print('[NAOqi] ' + linea.rstrip(), flush=True)
@@ -84,13 +87,26 @@ def main(argv=None):
     parser.add_argument('--solo-conexion', action='store_true', help='Prueba ALTextToSpeech y termina, sin IA.')
     parser.add_argument('--vision', action='store_true', help='Abre vision_ia.py en vez de la conversacion por texto.')
     parser.add_argument('--microfono', action='store_true', help='Requiere --vision y SpeechRecognition/PyAudio.')
+    parser.add_argument('--camara-nao', action='store_true')
+    parser.add_argument('--microfono-nao', action='store_true')
+    parser.add_argument('--indice-camara-nao', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--puerto-sensores', type=int, default=5006)
+    parser.add_argument('--callback-ip')
+    parser.add_argument('--callback-port', type=int, default=5007)
+    parser.add_argument('--solo-diagnostico', action='store_true', help='Comprueba voz y fuentes elegidas sin iniciar la partida.')
+    parser.add_argument('--saludo-ia', action='store_true')
+    parser.add_argument('--sin-ia', action='store_true')
     parser.add_argument('--camara', default='0')
     parser.add_argument('--sin-comentarios', action='store_true')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos de la partida.')
     parser.add_argument('--rondas', type=int, choices=(3, 5), default=3)
     parser.add_argument('--espera', type=float, default=3.0)
     args = parser.parse_args(argv)
-    if not all(1 <= x <= 65535 for x in (args.robot_port, args.puerto)):
+    if args.camara_nao or args.microfono_nao:
+        args.vision = True
+    if args.microfono_nao:
+        args.microfono = True
+    if not all(1 <= x <= 65535 for x in (args.robot_port, args.puerto, args.puerto_sensores, args.callback_port)):
         parser.error('Los puertos deben estar entre 1 y 65535.')
     if not 0.5 <= args.espera <= 10:
         parser.error('--espera debe estar entre 0.5 y 10 segundos.')
@@ -122,8 +138,9 @@ def main(argv=None):
         return comprobacion.returncode
     if args.solo_conexion:
         return 0
-    if not puerto_libre(args.puerto):
-        print('El puerto local {} esta ocupado. Cierra el servidor anterior o elige --puerto 5006.'.format(args.puerto))
+    if not args.solo_diagnostico and not puerto_libre(args.puerto):
+        print('El puerto local {} esta ocupado. Cierra el servidor anterior o elige otro puerto libre, '
+              'distinto del de sensores y del callback.'.format(args.puerto))
         return 1
 
     # Este lanzador es para las pruebas actuales con Codex y Luna. Se conserva
@@ -145,7 +162,48 @@ def main(argv=None):
         comando.append('--movimientos')
     puente = None
     lector = None
+    sensor = None
+    lector_sensor = None
+    cliente_sensores = None
     try:
+        if args.camara_nao or args.microfono_nao:
+            if not puerto_libre(args.puerto_sensores):
+                print('Puerto local de sensores ocupado:', args.puerto_sensores)
+                return 1
+            token = secrets.token_hex(24)
+            entorno_sensor = entorno_naoqi.copy()
+            entorno_sensor['NEO_SENSORES_TOKEN'] = token
+            entorno['NEO_SENSORES_TOKEN'] = token
+            comando_sensor = [python_naoqi, '-u', str(CARPETA / 'sensores_nao.py')] + destino
+            comando_sensor += ['--puerto', str(args.puerto_sensores), '--indice-camara', str(args.indice_camara_nao),
+                               '--callback-port', str(args.callback_port)]
+            if args.callback_ip:
+                comando_sensor += ['--callback-ip', args.callback_ip]
+            if not args.camara_nao:
+                comando_sensor.append('--sin-camara')
+            if not args.microfono_nao:
+                comando_sensor.append('--sin-microfono')
+            sensor = subprocess.Popen(comando_sensor, cwd=str(CARPETA), stdout=subprocess.PIPE,
+                                      stderr=subprocess.STDOUT, encoding='utf-8', errors='replace',
+                                      bufsize=1, env=entorno_sensor)
+            listo_sensor, lector_sensor = esperar_puente(sensor, timeout=20, marca='SENSORES_LISTOS')
+            if not listo_sensor:
+                print('No se validaron los sensores NAO. Revisa FALLO SENSORES NAO. No se sustituyen por los del PC.')
+                return 1
+            cliente_sensores = ClienteSensores(args.puerto_sensores, token)
+            estado_sensores = cliente_sensores.estado()
+            print('SENSORES_NAO_OK:', json.dumps(estado_sensores, ensure_ascii=False), flush=True)
+        else:
+            estado_sensores = {'origen': 'pc', 'nota': 'No se probaron los sensores internos del NAO.'}
+        carpeta_diagnostico = CARPETA / 'diagnosticos_locales'
+        carpeta_diagnostico.mkdir(exist_ok=True)
+        (carpeta_diagnostico / 'ultimo_examen.json').write_text(json.dumps({
+            'robot_ip': args.robot_ip, 'robot_port': args.robot_port,
+            'voz': {'servicio': 'ALTextToSpeech', 'solicitud_aceptada': True, 'audibilidad_confirmada': False},
+            'sensores': estado_sensores}, ensure_ascii=False, indent=2), encoding='utf-8')
+        if args.solo_diagnostico:
+            print('DIAGNOSTICO_COMPLETADO. La audibilidad y la precision de reconocimiento requieren observar la prueba.')
+            return 0
         puente = subprocess.Popen(comando, cwd=str(CARPETA), stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT, encoding='utf-8', errors='replace',
                                   bufsize=1, env=entorno_naoqi)
@@ -158,6 +216,16 @@ def main(argv=None):
                        '--puerto', str(args.puerto), '--camara', args.camara]
             if args.microfono:
                 cliente.append('--microfono')
+            if args.camara_nao:
+                cliente += ['--fuente-camara', 'nao', '--puerto-sensores', str(args.puerto_sensores)]
+            if args.microfono_nao:
+                cliente += ['--fuente-microfono', 'nao']
+                if not args.camara_nao:
+                    cliente += ['--puerto-sensores', str(args.puerto_sensores)]
+            if args.saludo_ia:
+                cliente.append('--saludo-ia')
+            if args.sin_ia:
+                cliente.append('--sin-ia')
             if args.sin_comentarios:
                 cliente.append('--sin-comentarios')
         else:
@@ -179,6 +247,18 @@ def main(argv=None):
                 lector.join(timeout=2)
             if puente.stdout is not None:
                 puente.stdout.close()
+        if sensor is not None:
+            if cliente_sensores:
+                cliente_sensores.cerrar()
+                try:
+                    sensor.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    pass
+            detener_puente(sensor)
+            if lector_sensor:
+                lector_sensor.join(timeout=2)
+            if sensor.stdout is not None:
+                sensor.stdout.close()
 
 
 if __name__ == '__main__':

@@ -1,11 +1,13 @@
 # Contexto para continuar las pruebas de Neo
 
-Lee `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de cambiar el flujo.
+Lee `EXAMEN_NAO_V6.md`, `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de cambiar el flujo.
 El usuario ya obtuvo una respuesta real con Codex y `gpt-6-luna` (5282 ms).
-Se trabaja primero con su Choregraphe y después con un NAO físico.
+El usuario no tendra acceso al robot fisico hasta el examen. Choregraphe es
+2.8.7.4-win64-vs2015, robot NAO V6 y puerto fisico confirmado por el usuario
+9559. La IP fisica es desconocida: se pide al ejecutar, no se inventa.
 
 `probar_choregraphe.py` es Python 3 y lanza el intérprete NAOqi configurado.
-`comprobar_naoqi.py`, `robot_server_ia.py`, `naoqi_compat.py` y `estado_juego.py` deben conservar
+`comprobar_naoqi.py`, `robot_server_ia.py`, `sensores_nao.py`, `naoqi_compat.py` y `estado_juego.py` deben conservar
 compatibilidad con Python 2.7. El intérprete del SDK original era
 `C:\Python27\python.exe`. Copia IP y puerto del destino real; no los adivines.
 El puerto virtual cambio de 62213 a 61778. El usuario ya obtuvo PROXY_OK y
@@ -20,9 +22,21 @@ interfaz del modelo. Los clientes ejecutan solo acciones validadas para la
 fase y versión actuales. Neo elige antes de la captura; no predice la jugada.
 
 La visión recibida utiliza la webcam de la laptop y MediaPipe solutions.hands.
+El lanzador anterior mantiene fuentes PC por defecto. iniciar_examen.py usa
+config/neo_examen.json: camara y microfono NAO, TTS nativo, Luna, tres rondas
+y movimientos desactivados. sensores_nao.py usa ALVideoDevice y ALAudioDevice;
+sensores_cliente.py entrega imagenes y PCM al cliente Python 3. El retorno
+de audio requiere acceso del robot al broker de la laptop (callback 5007).
+Los puentes HTTP/control son locales; no publiques sus puertos en la red.
+El token de sensores es efimero y no se guarda. No hay fallback automatico
+a sensores PC. No se ha integrado el agente Gemini mostrado en el chat.
 El modelo de anticipacion propuesto previamente no esta implementado ni
 entrenado: la clasificacion actual usa reglas sobre los puntos de la mano.
-No afirmes haber conectado la cámara interna del NAO o el reloj sin comprobarlo.
+No afirmes haber validado la camara, microfonos ni voz del NAO fisico sin
+comprobarlos. La integracion de software tiene pruebas con SDK simulado y PCM
+sintetico; la observacion de los companeros corresponde a otro programa.
+Un say sin error no acredita audibilidad ni paquetes PCM acreditan transcripcion.
+No hay conexion al reloj.
 El modo `--simular` solo imprime mensajes: no equivale a probar Choregraphe.
 Los tests del SDK y CLI usan dobles de prueba claramente identificados.
 

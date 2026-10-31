@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--robot-ip', default='127.0.0.1')
     parser.add_argument('--robot-port', type=int, required=True)
+    parser.add_argument('--solo-sdk', action='store_true', help='Importa el SDK sin conectar con un robot.')
     args = parser.parse_args()
     print('Interprete NAOqi:', sys.executable)
     print('Destino: {}:{}'.format(args.robot_ip, args.robot_port))
@@ -23,6 +24,9 @@ def main():
         print('Usa el Python y entorno del SDK con los que ejecutabas prueba_naoqui.py.')
         return 1
     print('SDK cargado:', getattr(naoqi, '__file__', '(modulo sin ruta)'))
+    if args.solo_sdk:
+        print('SDK_OK: importado sin conectar con un robot.')
+        return 0
     etapa = 'crear ALProxy(ALTextToSpeech)'
     try:
         tts = naoqi.ALProxy(cadena_naoqi('ALTextToSpeech'), cadena_naoqi(args.robot_ip), int(args.robot_port))
