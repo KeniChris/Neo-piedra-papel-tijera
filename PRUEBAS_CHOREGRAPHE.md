@@ -1,5 +1,11 @@
 # Probar Neo en tu Choregraphe
 
+Para el **NAO V6 fisico el dia del examen**, empieza por
+[EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md). Ese perfil ya usa Choregraphe 2.8.7.4,
+puerto fisico 9559, voz nativa y fuentes de camara/microfono NAO. La IP se pide
+al ejecutar. Su validacion con hardware sigue pendiente. Los pasos de esta
+guia mantienen las fuentes PC del ensayo virtual.
+
 Esta versión aprovecha tu conexión original: un programa Python 3 inicia
 `C:\Python27\python.exe`, y ese intérprete usa `naoqi.ALProxy`.
 El lanzador hace ese trabajo y cierra su puente cuando termina el cliente.
@@ -194,7 +200,7 @@ respondiendo cuando se le pregunta.
 | NAOqi no responde / falla ALTextToSpeech | Revisa que el virtual esté iniciado, IP y puerto actuales |
 | NotImplementedError | Usa los archivos actualizados, incluido naoqi_compat.py; conserva el diagnóstico con etapa y detalle |
 | No hay audio en el virtual | Mira Robot View o Dialog; puede ser el comportamiento esperado |
-| Puerto local 5005 ocupado | Cierra el servidor anterior; o añade `--puerto 5006` al lanzador |
+| Puerto local 5005 ocupado | Cierra el servidor anterior o elige otro puerto libre; evita 5006 y 5007 si usas el perfil de examen |
 | Falta CLI o sesión | En la terminal donde funciona Codex: `codex --version` y `codex login status` |
 | La respuesta tarda | Mira la latencia; los comandos exactos y teclas evitan esperar al modelo |
 | MediaPipe no tiene solutions.hands o falta cv2 | Ejecuta preparar_vision.py y lanza con .venv_neo\Scripts\python.exe |
@@ -202,6 +208,12 @@ respondiendo cuando se le pregunta.
 | No carga una edición del Markdown | Revisa la ruta que se imprime y si existe `NEO_POLITICAS`; espera una consulta nueva |
 
 ## Entrega al compañero para el robot físico
+
+**Para la version de examen actual, sigue [EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md).**
+Prepara `requirements_examen.txt` con `preparar_vision.py --examen`, verifica
+software ahora y usa el diagnostico al llegar al NAO. El equipo ya indico
+puerto fisico **9559**. Las instrucciones manuales siguientes se conservan
+para probar solamente el puente o las fuentes PC.
 
 Lleva la carpeta completa y los resultados de los pasos anteriores. Si se usa
 otra laptop, necesita su SDK NAOqi, el entorno de visión y una sesión propia
@@ -232,10 +244,10 @@ probar las poses recibidas en el espacio de ensayo del equipo.
 | Micrófono de tu laptop | Pendiente con este paquete |
 | Voz y movimientos en Neo físico | Pendiente de la prueba del compañero |
 
-**Cámara del robot:** este paquete usa la webcam de la laptop, como el archivo
-que recibimos. Si el compañero tiene una versión que ya lee la cámara interna
-de Neo, hay que adaptar esa fuente en `vision_ia.py`; esa integración no se da
-por hecha. No se utiliza el reloj en estas pruebas.
+**Camara y microfono del robot:** el perfil de examen selecciona las fuentes
+NAO mediante el nuevo puente de sensores. Recibir imagenes/PCM se comprueba al
+arrancar; el funcionamiento y la precision en el robot fisico siguen pendientes.
+El lanzador sin esas opciones conserva webcam y microfono PC. No se utiliza el reloj.
 
 ## Referencias del fabricante
 

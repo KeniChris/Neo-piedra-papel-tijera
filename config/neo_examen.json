@@ -1,0 +1,20 @@
+{
+  "robot_ip": null,
+  "robot_port": 9559,
+  "modelo": "NAO V6",
+  "choregraphe_version": "2.8.7.4-win64-vs2015",
+  "python_naoqi": "C:\\Python27\\python.exe",
+  "modelo_codex": "gpt-6-luna",
+  "camara": "nao",
+  "indice_camara_nao": 0,
+  "microfono": "nao",
+  "voz": "nao_tts",
+  "rondas": 3,
+  "espera_jugada_seg": 3.0,
+  "movimientos": false,
+  "puerto_control": 5005,
+  "puerto_sensores": 5006,
+  "callback_ip": null,
+  "callback_port": 5007,
+  "saludo_ia": true
+}

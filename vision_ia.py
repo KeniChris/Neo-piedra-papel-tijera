@@ -1,4 +1,4 @@
-"""Webcam y microfono del PC; conserva la geometria de vision.py recibido."""
+"""Vision y voz con fuentes PC o NAO; conserva la geometria recibida."""
 import argparse
 import importlib
 import sys
@@ -8,6 +8,7 @@ import time
 from cliente_neo import ConexionNeo, Conversador, procesar_texto
 from gestos import clasificar
 from ia_neo import CerebroNeo, ErrorIA
+from sensores_cliente import ClienteSensores, CamaraRemota, fuente_audio_nao
 
 
 class ErrorVision(RuntimeError):
@@ -48,22 +49,35 @@ def diagnosticar(cv2, mp, manos_clase):
     return 0
 
 
-def escuchar(conexion, conversador):
+def escuchar(conexion, conversador, origen='pc', puerto_sensores=5006, estado_microfono=None):
     try:
         import speech_recognition as sr
         reconocedor = sr.Recognizer()
         reconocedor.operation_timeout = 5
-        with sr.Microphone() as microfono:
-            while not conexion.closed.is_set() and not conexion.voz_token()[1]:
-                conexion.closed.wait(0.1)
-            reconocedor.adjust_for_ambient_noise(microfono, duration=0.6)
-            print('Microfono activo. Para conversar di Neo seguido de tu pregunta.')
+        fuente = fuente_audio_nao(sr, ClienteSensores(puerto_sensores)) if origen == 'nao' else sr.Microphone()
+        with fuente as microfono:
+            while not conexion.closed.is_set():
+                token, libre = conexion.voz_token()
+                if not libre:
+                    conexion.closed.wait(0.1)
+                    continue
+                if origen == 'nao':
+                    microfono.stream.descartar()
+                reconocedor.energy_threshold = 300
+                reconocedor.adjust_for_ambient_noise(microfono, duration=0.6)
+                if conexion.voz_valida(token):
+                    break
+            print('Microfono {} activo. Para conversar di Neo seguido de tu pregunta.'.format(origen.upper()))
+            if estado_microfono is not None:
+                estado_microfono['estado'] = 'listo'
             while not conexion.closed.is_set():
                 token, libre = conexion.voz_token()
                 if not libre:
                     conexion.closed.wait(0.1)
                     continue
                 try:
+                    if origen == 'nao':
+                        microfono.stream.descartar()
                     audio = reconocedor.listen(microfono, timeout=1, phrase_time_limit=4)
                     if not conexion.voz_valida(token):
                         continue
@@ -78,8 +92,10 @@ def escuchar(conexion, conversador):
                 except sr.RequestError:
                     print('No se pudo transcribir con Google. Usa T para escribir o las teclas.')
                     conexion.closed.wait(1)
-    except (ImportError, OSError, AttributeError) as error:
-        print('Microfono no disponible:', type(error).__name__, '| Usa T para escribir.')
+    except (ImportError, OSError, AttributeError, ValueError, RuntimeError) as error:
+        print('Microfono no disponible:', type(error).__name__, str(error), '| Usa T para escribir.')
+        if estado_microfono is not None:
+            estado_microfono['estado'] = 'FALLO; usa T'
 
 
 def main():
@@ -87,11 +103,17 @@ def main():
     parser.add_argument('--camara', default='0', help='Indice de webcam o fuente OpenCV que ya utilicen.')
     parser.add_argument('--puerto', type=int, default=5005)
     parser.add_argument('--microfono', action='store_true')
+    parser.add_argument('--fuente-camara', choices=('pc', 'nao'), default='pc')
+    parser.add_argument('--fuente-microfono', choices=('pc', 'nao'), default='pc')
+    parser.add_argument('--puerto-sensores', type=int, default=5006)
+    parser.add_argument('--saludo-ia', action='store_true')
     parser.add_argument('--sin-ia', action='store_true', help='Solo prueba local de vision y reglas; NO usa un modelo.')
     parser.add_argument('--sin-comentarios', action='store_true', help='La IA responde solo cuando el jugador le habla.')
     parser.add_argument('--diagnostico', action='store_true', help='Comprueba librerias y detector sin camara, Codex ni NAOqi.')
     args = parser.parse_args()
     print('Python de vision:', sys.executable)
+    print('Camara: {} | Microfono: {}'.format(args.fuente_camara.upper(),
+          args.fuente_microfono.upper() if args.microfono else 'desactivado'))
     try:
         cv2, mp, manos_clase = cargar_dependencias()
     except ErrorVision as error:
@@ -113,6 +135,7 @@ def main():
     cap = None
     hands = None
     entrada_activa = threading.Event()
+    estado_microfono = {'estado': 'iniciando' if args.microfono else 'desactivado'}
     try:
         conexion = ConexionNeo(port=args.puerto)
         conexion.esperar()
@@ -122,7 +145,10 @@ def main():
         else:
             print('MODO SIN IA: respuestas fijas y reglas locales. No es una demostracion de LLM.')
         if args.microfono:
-            threading.Thread(target=escuchar, args=(conexion, conversador), daemon=True).start()
+            threading.Thread(target=escuchar, args=(conexion, conversador, args.fuente_microfono,
+                             args.puerto_sensores, estado_microfono), daemon=True).start()
+        if args.saludo_ia and conversador:
+            conversador.pedir('Presentate en una frase e invita a jugar, sin iniciar la partida.')
 
         def escribir():
             try:
@@ -136,9 +162,10 @@ def main():
         hands = manos_clase(max_num_hands=1, min_detection_confidence=0.7,
                             min_tracking_confidence=0.7)
         fuente = int(args.camara) if args.camara.isdigit() else args.camara
-        cap = cv2.VideoCapture(fuente)
+        cap = (CamaraRemota(ClienteSensores(args.puerto_sensores)) if args.fuente_camara == 'nao'
+               else cv2.VideoCapture(fuente))
         if not cap.isOpened():
-            print('No se pudo abrir la camara del PC. Comprueba --camara.')
+            print('No se pudo abrir la camara {}. Revisa la fuente seleccionada.'.format(args.fuente_camara))
             return 1
         print('Teclas: S empezar | N siguiente | P pausa | C continuar | R reglas | M marcador | T texto | Esc salir')
         ultimo_token = None
@@ -186,6 +213,8 @@ def main():
             else:
                 estado_ia = 'IA: {} OK {} ms'.format(cerebro.provider, conversador.ultimo_tiempo_ms)
             lineas = [
+                'Fuentes: camara {} | micro {}'.format(args.fuente_camara, args.fuente_microfono if args.microfono else 'no'),
+                'Audio entrada: {}'.format(estado_microfono['estado']),
                 'Gesto: {} | {}'.format(sena or 'invalido / sin mano', fase),
                 'Neo {} - Jugador {}'.format(puntos['neo'], puntos['jugador']),
                 estado_ia,
@@ -193,6 +222,11 @@ def main():
             ]
             if conexion.hello.get('simulado'):
                 lineas.append('ROBOT SIMULADO - sin voz ni movimiento fisicos')
+            # QVGA basta para la captura del NAO; amplia solo la vista para
+            # que el estado y las teclas no queden cortados por su anchura.
+            if frame.shape[1] < 640:
+                alto_vista = round(frame.shape[0] * 640 / frame.shape[1])
+                frame = cv2.resize(frame, (640, alto_vista))
             for i, linea in enumerate(lineas):
                 cv2.putText(frame, linea, (10, 30 + i * 27), cv2.FONT_HERSHEY_SIMPLEX,
                             0.55, (0, 255, 0), 1)

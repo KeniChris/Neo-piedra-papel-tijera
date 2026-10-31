@@ -4,6 +4,21 @@ Integra conversacion con una IA real en la partida de piedra, papel o tijera.
 La laptop ejecuta la vision, transcripcion y cliente de IA. El puente NAOqi
 reproduce la voz y, si lo activas, los movimientos de tu script original.
 
+## Perfil para el examen con NAO V6
+
+Usa **[EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md)** para el robot fisico. Configura
+Choregraphe 2.8.7.4, puerto 9559, camara y microfono NAO, voz ALTextToSpeech y
+Luna. La IP se introduce ese dia. `python preparar_vision.py --examen` prepara
+las dependencias; `iniciar_examen.py --verificar-config` comprueba software sin
+robot; `iniciar_examen.py --diagnostico` comprueba la conexion y recepcion de
+sensores antes de abrir la partida. Usa el Python de `.venv_neo` para esos
+comandos. La integracion de software esta probada con dobles del SDK;
+el ensayo en el robot fisico sigue pendiente.
+
+Los ejemplos anteriores de `probar_choregraphe.py --vision` que aparecen abajo
+conservan webcam y microfono PC. El perfil nuevo selecciona fuentes NAO de
+forma expresa y no las sustituye por fuentes PC si fallan.
+
 ## Actualizacion: Choregraphe y politicas editables
 
 Empieza por **[PRUEBAS_CHOREGRAPHE.md](PRUEBAS_CHOREGRAPHE.md)**. Usa tu
@@ -108,8 +123,9 @@ Las copias exactas de los cinco archivos recibidos estan en `originales/`;
 incluyen tambien `prueba.py` y `prueba_naoqui.py`. Esta ultima copia conserva
 los comentarios y comillas recibidos; para probar usa los scripts nuevos.
 El paquete es una version separada; no reemplaza tus archivos al extraerlo.
-Si tu companero tiene otra version con la camara interna de Neo, esa fuente
-de video debe incorporarse a `vision_ia.py`; este paquete conserva la webcam.
+La integracion nueva de camara interna esta en `sensores_nao.py` y
+`sensores_cliente.py`. Se usa mediante el perfil de examen o las opciones
+`--camara-nao` y `--microfono-nao` del lanzador. La webcam sigue disponible.
 
 ## Segunda comprobacion: que Neo diga una respuesta de IA
 
@@ -297,7 +313,7 @@ No constituye una prueba de voz, movimientos fisicos ni respuestas de un LLM.
 
 ## Validacion realizada
 
-Se ejecutaron 39 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
+Se ejecutaron 53 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
 las nueve combinaciones de jugadas, limite de rondas, empates, reintentos,
 marcador, captura identificada por ventana, conexion TCP local entre procesos,
 contexto antiguo, cancelacion de decisiones pendientes, comandos con negacion,
@@ -317,6 +333,12 @@ con etapa y detalle. Estas pruebas simulan los requisitos de tipos de Python
 2 desde Python 3; no sustituyen una ejecucion con el SDK real del usuario.
 Los diagnosticos de vision distinguen falta de cv2, fallo de MediaPipe y falta
 de la API legacy; el modo --diagnostico no crea una IA ni conecta con NAOqi.
+Las pruebas de examen agregan transporte HTTP local de imagenes BGR y PCM,
+validacion de formatos y continuidad, descarte de audio anterior al turno,
+registro de callbacks y cierre de suscripciones. El diagnostico completo se
+ejecuta en procesos con un SDK falso, sin iniciar el juego ni mover articulaciones.
+SpeechRecognition real se comprobo con una fuente de PCM sintetico; esta prueba
+se omite si no esta instalada la dependencia de examen. No usa Google ni un microfono real.
 
 Tambien se instalo realmente el entorno de requirements_vision.txt en Linux
 con Python 3.12: pip check paso y Hands proceso un fotograma vacio. Se comprobo
@@ -336,13 +358,19 @@ Tras corregir la conversion de Unicode y comprobar el puerto, el usuario
 obtuvo PROXY_OK y NAOQI_OK en 127.0.0.1:61778 con su SDK real Python 2.7.
 Tambien ejecuto empezar, cuenta atras y pausa automatica en Choregraphe.
 Esa orden directa no demuestra todavia una respuesta de Luna dentro del puente.
-Los cuatro archivos del puente evitan sintaxis exclusiva de Python 3; su ejecucion
-con Python 2.7/NAOqi sigue pendiente en tu instalacion.
+El puente de sensores nuevo evita sintaxis exclusiva de Python 3, pero su
+ejecucion con Python 2.7/NAOqi y los sensores fisicos sigue pendiente.
 
 ## Archivos
 
 | Archivo | Funcion |
 | --- | --- |
+| EXAMEN_NAO_V6.md | Preparacion y arranque el dia del examen |
+| config/neo_examen.json | Perfil con fuentes NAO, puerto y modelo |
+| iniciar_examen.py | Verificacion sin robot y arranque con perfil |
+| sensores_nao.py | Captura de imagen y PCM con el SDK Python 2.7 |
+| sensores_cliente.py | Fuentes remotas para OpenCV y SpeechRecognition |
+| requirements_examen.txt | Vision y transcripcion del microfono NAO |
 | POLITICAS_NEO.md | Personalidad y reglas de conversacion editables |
 | PRUEBAS_CHOREGRAPHE.md | Pasos en tu laptop y entrega al companero |
 | AGENTS.md | Contexto para continuar el trabajo con Codex |
@@ -358,7 +386,7 @@ con Python 2.7/NAOqi sigue pendiente en tu instalacion.
 | USAR_CODEX.ps1 | Selecciona Codex; no pide clave API |
 | robot_server_ia.py | Puente NAOqi y control de la partida |
 | estado_juego.py | Reglas y marcador, compatible con Python 2.7 y 3 |
-| vision_ia.py | Webcam, microfono opcional e integracion de IA |
+| vision_ia.py | Vision, microfono opcional PC/NAO e integracion de IA |
 | cliente_neo.py | Protocolo y control de respuestas tardias |
 | gestos.py | Geometria del clasificador recibido |
 | originales/ | Copias sin modificar de tus archivos |

@@ -31,6 +31,7 @@ auth.json
 datos_locales/
 grabaciones/
 resultados_locales/
+diagnosticos_locales/
 *.log
 *.tmp
 *.bak
