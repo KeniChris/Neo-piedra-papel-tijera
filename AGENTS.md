@@ -28,8 +28,17 @@ y movimientos desactivados. sensores_nao.py usa ALVideoDevice y ALAudioDevice;
 sensores_cliente.py entrega imagenes y PCM al cliente Python 3. El retorno
 de audio requiere acceso del robot al broker de la laptop (callback 5007).
 Los puentes HTTP/control son locales; no publiques sus puertos en la red.
-El token de sensores es efimero y no se guarda. No hay fallback automatico
-a sensores PC. No se ha integrado el agente Gemini mostrado en el chat.
+El token de sensores es efimero y no se guarda. El usuario autorizo respaldo
+con Choregraphe cuando falle el fisico. El perfil activa respaldo_choregraphe:
+sensores NAO fallidos se intentan con PC; si falla el destino al arrancar
+(codigo 70), se intenta una vez el virtual 127.0.0.1 con fuentes PC. Se pide
+el puerto virtual actual si falta; no se supone que siga siendo 61778.
+--virtual permite ensayar ese respaldo directamente. No se cambia de destino
+tras cancelacion, cierre normal ni fallos locales/IA. El HUD y hello indican
+el entorno y fuentes activas. Un cambio de camara durante la partida pide
+pausa y reinicia detecciones; no se transfieren puntos entre sesiones nuevas.
+El lanzador manual sigue estricto salvo --respaldo-pc. No se ha integrado
+el agente Gemini mostrado en el chat. El virtual puede mostrar voz como texto.
 El modelo de anticipacion propuesto previamente no esta implementado ni
 entrenado: la clasificacion actual usa reglas sobre los puntos de la mano.
 No afirmes haber validado la camara, microfonos ni voz del NAO fisico sin

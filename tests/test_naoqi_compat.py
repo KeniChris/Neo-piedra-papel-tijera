@@ -105,7 +105,7 @@ class PruebasCompatibilidadNAOqi(unittest.TestCase):
                 with patch.dict(sys.modules, {'naoqi': sdk}):
                     with patch.object(sys, 'argv', ['comprobar_naoqi.py', '--robot-port', '62213']):
                         with contextlib.redirect_stdout(io.StringIO()) as salida, contextlib.redirect_stderr(io.StringIO()) as error:
-                            self.assertEqual(comprobar(), 1)
+                            self.assertEqual(comprobar(), 70)
                 esperado = 'crear ALProxy' if etapa == 'proxy' else 'ALTextToSpeech.say'
                 self.assertIn(esperado, salida.getvalue())
                 self.assertIn('DETALLE_SDK_NO_OCULTO', salida.getvalue())

@@ -22,6 +22,12 @@ El día del examen, ejecuta primero `iniciar_examen.py --diagnostico` con ese
 Python; si pasa, ejecuta `iniciar_examen.py`. La integración de sensores está
 probada con SDK simulado; **la validación física sigue pendiente**.
 
+El respaldo está activado: intenta sensores PC cuando falle un sensor NAO y,
+si falla el destino físico al arrancar, intenta una vez el virtual de
+Choregraphe. Pide el puerto virtual actual si falta. Puedes ensayarlo con
+`.\.venv_neo\Scripts\python.exe iniciar_examen.py --virtual`. La ventana
+indica destino y fuentes; la voz virtual se muestra en Robot View/Dialog.
+
 ## Puesta en marcha en Windows
 
 Se usan dos intérpretes: Python 3.11 de 64 bits para cámara y conversación,
@@ -78,7 +84,7 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 - El usuario obtuvo una respuesta real de Codex con `gpt-6-luna` en su laptop.
 - El usuario confirmó `PROXY_OK` y `NAOQI_OK` en su Choregraphe y ejecutó
   cuenta atrás y pausa automática.
-- Pasaron 53 pruebas automatizadas, con CLI/API/SDK simulados y transporte
+- Pasaron 65 pruebas automatizadas, con CLI/API/SDK simulados y transporte
   local real; SpeechRecognition se comprobó con PCM sintético, sin hardware.
 - MediaPipe Hands se instaló y procesó un fotograma vacío en Linux/Python 3.12;
   se comprobó la resolución de dependencias para Windows x64/Python 3.11.
@@ -86,8 +92,8 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
   una respuesta de Luna enviada por el puente y la ejecución en el robot físico.
 
 El lanzador anterior conserva webcam y micrófono PC como fuentes por defecto.
-El modo de examen selecciona cámara y micrófono NAO mediante un puente del
-SDK, sin cambiar automáticamente a fuentes PC. No hay transmisión desde el reloj.
+El modo de examen intenta primero cámara y micrófono NAO mediante un puente
+del SDK, y permite respaldo PC según el perfil. No hay transmisión desde el reloj.
 
 ## Desarrollo
 
