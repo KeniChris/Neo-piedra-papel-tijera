@@ -1,0 +1,7 @@
+$ErrorActionPreference = 'Stop'
+$env:NEO_IA_PROVIDER = 'codex'
+Write-Host 'Se usara Codex con inicio de sesion de ChatGPT.'
+Write-Host 'No se solicita ni se usa una clave de OpenAI API en esta modalidad.'
+Write-Host 'Ejecuta: codex --version'
+Write-Host 'Si aun no iniciaste sesion: codex login'
+Write-Host 'Elige Sign in with ChatGPT. Despues ejecuta: python probar_ia.py'

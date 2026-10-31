@@ -1,0 +1,9 @@
+# Entorno para el clasificador recibido, que utiliza MediaPipe Legacy Hands.
+# Python 3.10-3.12 de 64 bits; la laptop del usuario utiliza Python 3.11.
+# Se instala solo una variante de OpenCV para el modulo cv2.
+numpy==1.26.4
+opencv-contrib-python==4.11.0.86
+mediapipe==0.10.21
+# Evita resolver JAX reciente, que exige NumPy 2, en este entorno legacy.
+jax==0.4.35
+jaxlib==0.4.35

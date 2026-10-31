@@ -1,0 +1,43 @@
+# Entornos y paquetes instalados en esta laptop
+.venv_neo/
+.venv/
+venv/
+env/
+
+# Archivos generados de Python y herramientas
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Configuracion local y sesiones
+.env
+.env.*
+!.env.example
+.codex/
+auth.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Resultados y grabaciones locales
+datos_locales/
+grabaciones/
+resultados_locales/
+*.log
+*.tmp
+*.bak
+*.zip
+
+# Archivos locales del editor y del sistema
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
