@@ -310,12 +310,14 @@ class PruebaDiagnosticoEnProcesos(unittest.TestCase):
 
 class PruebasRespaldo(unittest.TestCase):
     def test_fallo_fisico_intenta_virtual_con_fuentes_pc(self):
-        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 0]) as iniciar:
+        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 70, 0]) as iniciar:
             with patch('builtins.input', return_value='61778') as entrada, contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(iniciar_examen(['--ip', '192.0.2.20', '--sin-ia']), 0)
-        primero, segundo = [c.args[0] for c in iniciar.call_args_list]
+        primero, alternativo, segundo = [c.args[0] for c in iniciar.call_args_list]
         self.assertIn('192.0.2.20', primero)
         self.assertIn('--camara-nao', primero)
+        self.assertIn('9561', alternativo)
+        self.assertIn('--camara-nao', alternativo)
         self.assertIn('127.0.0.1', segundo)
         self.assertIn('61778', segundo)
         self.assertIn('virtual', segundo)
@@ -333,10 +335,10 @@ class PruebasRespaldo(unittest.TestCase):
                 entrada.assert_not_called()
 
     def test_fallo_del_virtual_no_crea_bucle_de_reintentos(self):
-        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 70]) as iniciar:
+        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 70, 70]) as iniciar:
             with patch('builtins.input') as entrada, contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(iniciar_examen(['--ip', '192.0.2.20', '--puerto-virtual', '61778']), 70)
-            self.assertEqual(iniciar.call_count, 2)
+            self.assertEqual(iniciar.call_count, 3)
             entrada.assert_not_called()
 
     def test_virtual_directo_no_pide_ip_fisica(self):
@@ -357,10 +359,45 @@ class PruebasRespaldo(unittest.TestCase):
         p = cargar_config()
         p.pop('respaldo_choregraphe')
         p.pop('puerto_virtual')
+        p.pop('puertos_fisicos_alternativos')
         with tempfile.TemporaryDirectory() as t:
             ruta = Path(t) / 'perfil.json'
             ruta.write_text(json.dumps(p), encoding='utf-8')
-            self.assertFalse(cargar_config(ruta)['respaldo_choregraphe'])
+            anterior = cargar_config(ruta)
+            self.assertFalse(anterior['respaldo_choregraphe'])
+            self.assertEqual(anterior['puertos_fisicos_alternativos'], [])
+
+    def test_9561_conectado_conserva_nao_fisico_y_evitar_virtual(self):
+        perfil = cargar_config()
+        perfil['robot_ip'] = '192.0.2.20'
+        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 0]) as iniciar:
+            with patch('builtins.input') as entrada, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(modulo_examen.ejecutar_con_respaldo(perfil), 0)
+        entrada.assert_not_called()
+        args = [c.args[0] for c in iniciar.call_args_list]
+        self.assertEqual([a[a.index('--robot-port') + 1] for a in args], ['9559', '9561'])
+        for a in args:
+            self.assertIn('--camara-nao', a)
+            self.assertIn('--microfono-nao', a)
+            self.assertEqual(a[a.index('--entorno') + 1], 'fisico')
+        self.assertEqual(perfil['robot_port'], 9559)
+
+    def test_error_local_en_otro_puerto_no_lanza_virtual(self):
+        for codigo in (1, 130):
+            with self.subTest(codigo=codigo), patch('iniciar_examen.iniciar_prueba', side_effect=[70, codigo]) as iniciar:
+                with patch('builtins.input') as entrada, contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(iniciar_examen(['--ip', '192.0.2.20']), codigo)
+                entrada.assert_not_called()
+                self.assertEqual(iniciar.call_count, 2)
+
+    def test_puerto_principal_no_se_repite_en_respaldo(self):
+        perfil = cargar_config()
+        perfil.update(robot_ip='192.0.2.20', puertos_fisicos_alternativos=[9559, 9561], puerto_virtual=61778)
+        with patch('iniciar_examen.iniciar_prueba', side_effect=[70, 70, 0]) as iniciar:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(modulo_examen.ejecutar_con_respaldo(perfil), 0)
+        args = [c.args[0] for c in iniciar.call_args_list]
+        self.assertEqual([a[a.index('--robot-port') + 1] for a in args], ['9559', '9561', '61778'])
 
     def test_camara_fallida_conserva_microfono_nao(self):
         def proxy(modulo, *args):
@@ -477,7 +514,9 @@ class PruebasRespaldo(unittest.TestCase):
             entrada.assert_not_called()
             llamadas = [json.loads(x) for x in log.read_text().splitlines()]
             destinos = [x['ip'] for x in llamadas if isinstance(x, dict)]
-            self.assertEqual(destinos, ['192.0.2.20', '127.0.0.1', '127.0.0.1'])
+            self.assertEqual(destinos, ['192.0.2.20', '192.0.2.20', '127.0.0.1', '127.0.0.1'])
+            puertos_fisicos = [x['puerto'] for x in llamadas if isinstance(x, dict) and x['ip'] == '192.0.2.20']
+            self.assertEqual(puertos_fisicos, [9559, 9561])
             with self.assertRaises(OSError):
                 socket.create_connection(('127.0.0.1', perfil['puerto_control']), timeout=.2)
 

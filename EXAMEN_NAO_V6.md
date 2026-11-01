@@ -1,7 +1,9 @@
 # Examen con Neo / NAO V6
 
 Perfil preparado para la instalación indicada por el equipo: **NAO V6,
-Choregraphe 2.8.7.4-win64-vs2015 y puerto NAOqi 9559**. No instala ni cambia
+Choregraphe 2.8.7.4-win64-vs2015 y puerto NAOqi inicial 9559**, con segundo
+intento en **9561**, que aparece en la configuracion del proyecto compartido
+por el companero. No instala ni cambia
 el firmware. La versión que tenga realmente el robot se consultará al conectar.
 La IP se introduce ese día; no se reutiliza `127.0.0.1` del robot virtual.
 
@@ -22,11 +24,24 @@ un antecedente útil, pero usaban otro programa.
 | Partida | 3 rondas válidas; ventana de jugada de 3 segundos |
 | Movimientos | Desactivados; se activan expresamente con `--movimientos` |
 | Respaldo | Activado: sensores PC y un intento con Choregraphe virtual si falla el destino físico al arrancar |
+| Puertos físicos | Primero 9559; después 9561 si el destino anterior falla al arrancar |
 
 La captura del chat describe **Gemini generando un audio que el robot reproduce**.
 Este proyecto usa la voz nativa del NAO para leer el texto generado por Luna;
 no incluye ese agente de Gemini. Para el micrófono NAO no hace falta PyAudio.
 La selección está en [config/neo_examen.json](config/neo_examen.json).
+
+La revisión del proyecto compartido confirma dos caminos: `ALProxy` para
+movimientos y `qi.Session`/`ALAudioDevice` para reproducir el audio de Gemini.
+Su `live/voice_microphone.py` captura el dispositivo de entrada del PC mediante
+PyAudio; no suscribe los micrófonos NAO. Tampoco contiene captura de cámara NAO.
+Ese ejemplo sirve de referencia de conexión y salida de audio, no como prueba
+de nuestra cámara, nuestros micrófonos ni la voz nativa `ALTextToSpeech`.
+No se incorporan su archivo `.env`, credenciales ni IP privada al repositorio.
+
+El puerto 9561 también está documentado en la
+[actualización de NAO6](https://maxtronics.com/en/new-sw-update-nao6/).
+La versión de Choregraphe de la laptop no determina qué firmware tiene el NAO.
 
 ## Preparar la laptop ahora, sin robot
 
@@ -82,7 +97,7 @@ Primero ejecuta:
 ```
 
 Cuando diga `IP actual del NAO fisico >`, introduce solo la IP. Ya usa el
-puerto **9559**. El diagnóstico solicita una frase de voz, obtiene una imagen
+puerto **9559** primero y **9561** si falla ese destino. El diagnóstico solicita una frase de voz, obtiene una imagen
 y espera paquetes reales de micrófono. Consulta versión, volumen y silencio
 si el robot ofrece esos métodos. Termina sin iniciar el juego ni moverlo.
 
@@ -144,7 +159,7 @@ Con `respaldo_choregraphe: true`, el perfil aplica este orden:
 
 | Fallo | Respaldo |
 | --- | --- |
-| Conexión, voz o puente del destino físico durante el arranque | Cierra ese intento e intenta una vez el NAOqi virtual de Choregraphe; usa sensores PC y pide el puerto virtual si falta. |
+| Conexión, voz o puente del destino físico durante el arranque | Cierra ese intento y prueba el siguiente puerto físico configurado. Si fallan 9559 y 9561, intenta una vez Choregraphe virtual con sensores PC. |
 | Cámara NAO | Intenta webcam PC y conserva voz/control y micrófono NAO si funcionan. |
 | Micrófono NAO | Intenta micrófono PC y conserva cámara y voz/control que funcionen. |
 | Micrófono PC | Muestra el fallo y deja teclas/T disponibles. |
@@ -166,7 +181,7 @@ robot: esa falta de audibilidad no puede detectarse solo con la respuesta del SD
 
 | Síntoma | Qué revisar |
 | --- | --- |
-| No conecta con NAOqi | IP física, puerto 9559 y acceso entre laptop y robot. Un puerto del virtual no sirve para el físico. |
+| No conecta con NAOqi | IP física, intentos 9559/9561 y acceso entre laptop y robot. Un puerto del virtual no sirve para el físico. |
 | No se oye la frase | Volumen y silencio en el NAO; conserva el aviso si no acepta Spanish. |
 | No llegan muestras de micrófono | Mira `callback_ip` y `callback_port` impresos. El robot necesita volver a conectar a la laptop. Permite el Python del SDK en la red privada de Windows, sin desactivar el firewall. |
 | Seleccionó otra tarjeta de red | Configura `callback_ip` con la IP de la laptop en la red del NAO; por defecto se deduce de la ruta al robot. |
@@ -180,6 +195,10 @@ Puedes elegir webcam cambiando `camara` a `pc` en el JSON, o teclado cambiando
 los cambios automáticos, configura `respaldo_choregraphe` como `false`.
 El lanzador manual mantiene el comportamiento estricto salvo que se le añada
 `--respaldo-pc`.
+`puertos_fisicos_alternativos` contiene solo puertos conocidos que se prueban
+en la misma IP antes del virtual; no se exploran otros puertos ni direcciones.
+Si ya confirmaste 9561 como principal, puedes cambiar `robot_port` a 9561 y
+poner `[9559]` en esa lista.
 
 ## Alcance de la demostración
 
@@ -188,7 +207,7 @@ el estado del juego. No predice una jugada futura, no detecta presión ni usa
 el reloj. Codex recibe texto y estado; la transcripción de voz se envía a
 Google. No se envían las imágenes de la cámara al modelo conversacional.
 
-Pasaron **65 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
+Pasaron **68 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
 simulada, transporte local de imágenes y PCM, descarte de audio antiguo,
 suscripciones y cierre de procesos. Una prueba usa SpeechRecognition real
 con PCM sintético; se omite si no está instalado. También se ejecutó MediaPipe

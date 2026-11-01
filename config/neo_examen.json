@@ -18,5 +18,6 @@
   "callback_port": 5007,
   "saludo_ia": true,
   "respaldo_choregraphe": true,
-  "puerto_virtual": null
+  "puerto_virtual": null,
+  "puertos_fisicos_alternativos": [9561]
 }

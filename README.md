@@ -23,8 +23,10 @@ Python; si pasa, ejecuta `iniciar_examen.py`. La integración de sensores está
 probada con SDK simulado; **la validación física sigue pendiente**.
 
 El respaldo está activado: intenta sensores PC cuando falle un sensor NAO y,
-si falla el destino físico al arrancar, intenta una vez el virtual de
-Choregraphe. Pide el puerto virtual actual si falta. Puedes ensayarlo con
+si falla el destino físico al arrancar, prueba también 9561 y luego intenta
+una vez el virtual de Choregraphe. El 9561 procede de la configuración del
+proyecto compartido por el compañero; se mantiene 9559 como primer intento.
+Pide el puerto virtual actual si falta. Puedes ensayarlo con
 `.\.venv_neo\Scripts\python.exe iniciar_examen.py --virtual`. La ventana
 indica destino y fuentes; la voz virtual se muestra en Robot View/Dialog.
 
@@ -84,7 +86,7 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 - El usuario obtuvo una respuesta real de Codex con `gpt-6-luna` en su laptop.
 - El usuario confirmó `PROXY_OK` y `NAOQI_OK` en su Choregraphe y ejecutó
   cuenta atrás y pausa automática.
-- Pasaron 65 pruebas automatizadas, con CLI/API/SDK simulados y transporte
+- Pasaron 68 pruebas automatizadas, con CLI/API/SDK simulados y transporte
   local real; SpeechRecognition se comprobó con PCM sintético, sin hardware.
 - MediaPipe Hands se instaló y procesó un fotograma vacío en Linux/Python 3.12;
   se comprobó la resolución de dependencias para Windows x64/Python 3.11.
