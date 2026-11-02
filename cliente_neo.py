@@ -75,9 +75,12 @@ class ConexionNeo:
                 if tipo == 'hello':
                     self.hello = dato
                     if dato.get('entorno') == 'virtual':
-                        print('CHOREGRAPHE VIRTUAL conectado: voz visible en Robot View/Dialog.')
+                        print('CHOREGRAPHE VIRTUAL conectado: ' + ('voz OpenAI en la laptop.'
+                              if dato.get('voz') == 'openai' else 'voz visible en Robot View/Dialog.'))
                     else:
                         print('Robot SIMULADO' if dato.get('simulado') else 'Puente NAOqi conectado')
+                    if dato.get('voz') == 'openai':
+                        print('Voz generada por OpenAI | salida:', dato.get('salida_voz'))
                 elif tipo == 'state':
                     with self.lock:
                         self.estado = dato['state']

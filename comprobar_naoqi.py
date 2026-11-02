@@ -17,6 +17,10 @@ def main():
     parser.add_argument('--robot-ip', default='127.0.0.1')
     parser.add_argument('--robot-port', type=int, required=True)
     parser.add_argument('--solo-sdk', action='store_true', help='Importa el SDK sin conectar con un robot.')
+    parser.add_argument('--voz', choices=('nao_tts', 'openai'), default='nao_tts')
+    parser.add_argument('--salida-voz', choices=('nao', 'pc'), default='nao')
+    parser.add_argument('--puerto-voz', type=int, default=5008)
+    parser.add_argument('--probar-voz', action='store_true', help='Lee una frase a traves del puente OpenAI; consume API.')
     args = parser.parse_args()
     print('Interprete NAOqi:', sys.executable)
     print('Arquitectura del interprete SDK:', struct.calcsize('P') * 8, 'bits')
@@ -31,6 +35,32 @@ def main():
     if args.solo_sdk:
         print('SDK_OK: importado sin conectar con un robot.')
         return 0
+    if args.voz == 'openai':
+        from audio_neo import SalidaAudioNAO, ClienteVoz, ErrorPuenteVoz
+        salida = None
+        try:
+            if args.salida_voz == 'nao':
+                salida = SalidaAudioNAO(args.robot_ip, args.robot_port)
+            else:
+                # Comprueba el destino virtual, aunque el audio saldra por la laptop.
+                naoqi.ALProxy(cadena_naoqi('ALMemory'), cadena_naoqi(args.robot_ip), int(args.robot_port))
+            if args.probar_voz:
+                ClienteVoz(args.puerto_voz, salida=salida).decir(
+                    'Hola, soy Neo. Esta es mi voz generada por inteligencia artificial.')
+                print('VOZ_OPENAI_ENVIADA: reproduccion solicitada en {}. Confirma que se oiga.'.format(args.salida_voz))
+            else:
+                print('NAOQI_OK: destino disponible para voz OpenAI; no se genero audio ni se probo audibilidad.')
+            return 0
+        except ErrorPuenteVoz as error:
+            print('FALLO VOZ OPENAI:', str(error))
+            return 1
+        except Exception as error:
+            print('FALLO SALIDA AUDIO NAO:', type(error).__name__)
+            # Tras empezar la prueba de pago no se repite en otros destinos.
+            return 1 if args.probar_voz else FALLO_DESTINO
+        finally:
+            if salida is not None:
+                salida.cerrar()
     etapa = 'crear ALProxy(ALTextToSpeech)'
     try:
         tts = naoqi.ALProxy(cadena_naoqi('ALTextToSpeech'), cadena_naoqi(args.robot_ip), int(args.robot_port))

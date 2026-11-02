@@ -9,6 +9,8 @@
   "indice_camara_nao": 0,
   "microfono": "nao",
   "voz": "nao_tts",
+  "voz_openai": "marin",
+  "puerto_voz": 5008,
   "rondas": 3,
   "espera_jugada_seg": 3.0,
   "movimientos": false,

@@ -43,6 +43,8 @@ def main(argv=None):
             subprocess.run([str(python_vision), '-c',
                             'import speech_recognition as sr; print("TRANSCRIPCION_OK:", sr.__version__)'],
                            check=True, env=entorno)
+            subprocess.run([str(python_vision), str(CARPETA / 'probar_voz.py'), '--solo-config'],
+                           cwd=str(CARPETA), check=True, env=entorno)
     except (OSError, subprocess.CalledProcessError) as error:
         print('No se completo la preparacion:', type(error).__name__)
         print('Conserva el error de instalacion o diagnostico que aparece arriba.')

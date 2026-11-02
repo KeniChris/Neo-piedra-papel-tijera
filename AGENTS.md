@@ -1,6 +1,18 @@
 # Contexto para continuar las pruebas de Neo
 
 Lee `EXAMEN_NAO_V6.md`, `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de cambiar el flujo.
+Lee tambien `VOZ_OPENAI.md` para cambiar la salida de voz. El usuario autorizo
+sustituir el audio de Gemini por OpenAI manteniendo Codex/Luna como cerebro.
+La opcion --voz openai usa Realtime gpt-realtime-2.1-mini y marin; no se pasa
+ese modelo a /v1/audio/speech. voz_openai.py es Python 3; audio_neo.py debe
+conservar Python 2.7. La clave se pide oculta o se toma de OPENAI_API_KEY,
+no se guarda ni se hereda al SDK/vision/Codex. El SDK recibe solo token local
+efimero y PCM. En el fisico sale por qi.Session/ALAudioDevice; en el virtual
+sale por PyAudio en PC. No requiere ALTextToSpeech en modo OpenAI fisico.
+No cambies el perfil nativo a pago silenciosamente. No reintentes consultas de
+voz de pago al cambiar de puerto. El coste se registra como metadatos locales.
+81 pruebas pasaron con API/SDK simulados y PCM sintetico. No hubo llamada real
+a OpenAI, escucha del PC ni validacion fisica de esta voz. No afirmes lo contrario.
 El usuario ya obtuvo una respuesta real con Codex y `gpt-6-luna` (5282 ms).
 El usuario no tendra acceso al robot fisico hasta el examen. Choregraphe es
 2.8.7.4-win64-vs2015, robot NAO V6 y puerto fisico confirmado por el usuario
