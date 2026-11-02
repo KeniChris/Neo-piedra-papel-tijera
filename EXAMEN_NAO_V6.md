@@ -7,6 +7,15 @@ por el companero. No instala ni cambia
 el firmware. La versión que tenga realmente el robot se consultará al conectar.
 La IP se introduce ese día; no se reutiliza `127.0.0.1` del robot virtual.
 
+Para audio generado por OpenAI con el mismo cerebro Luna, sigue
+**[VOZ_OPENAI.md](VOZ_OPENAI.md)**. Usa `--voz openai` en el diagnostico y la
+partida. En el fisico se envia PCM a ALAudioDevice; con `--virtual` se escucha
+en la laptop. Esa opcion consume saldo API y requiere una clave propia; el
+perfil sigue seleccionando voz nativa hasta que la actives expresamente.
+Un fallo de API no dispara el respaldo de puertos. Despues de iniciar una
+prueba de audio de pago, un fallo de salida tampoco repite automaticamente
+la consulta en otro destino. Las instrucciones de abajo describen voz nativa.
+
 La integración está implementada y comprobada con un SDK simulado. **La voz,
 la cámara, los micrófonos y la partida completa en el NAO físico siguen
 pendientes de validación.** Las pruebas de audio de otros compañeros son
@@ -207,7 +216,7 @@ el estado del juego. No predice una jugada futura, no detecta presión ni usa
 el reloj. Codex recibe texto y estado; la transcripción de voz se envía a
 Google. No se envían las imágenes de la cámara al modelo conversacional.
 
-Pasaron **68 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
+Pasaron **81 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
 simulada, transporte local de imágenes y PCM, descarte de audio antiguo,
 suscripciones y cierre de procesos. Una prueba usa SpeechRecognition real
 con PCM sintético; se omite si no está instalado. También se ejecutó MediaPipe
@@ -215,6 +224,10 @@ Hands con una imagen vacía en Linux. Las pruebas de respaldo incluyen un fallo
 del destino físico simulado seguido de conexión TCP real al puente de un SDK
 falso, sin dispositivos ni consultas a un modelo real. Ninguna sustituye el
 ensayo en el salón.
+
+La ampliacion de voz se comprobo con eventos Realtime simulados y PCM
+sintetico, incluyendo TCP/HTTP locales entre procesos. No se hizo una consulta
+real a OpenAI ni se escucho el audio en esta comprobacion.
 
 Referencias: [ALVideoDevice 2.8](https://doc.aldebaran.com/2-8/naoqi/vision/alvideodevice-api.html),
 [ALAudioDevice](https://doc.aldebaran.com/2-5/naoqi/audio/alaudiodevice-api.html)

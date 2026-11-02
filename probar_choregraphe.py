@@ -16,6 +16,8 @@ import sys
 import threading
 from sensores_cliente import ClienteSensores
 from comprobar_naoqi import FALLO_DESTINO
+from voz_openai import (ErrorVoz, LectorOpenAI, ServicioVoz, VOCES, comprobar_biblioteca,
+                        entorno_sin_claves_api, obtener_clave)
 
 CARPETA = Path(__file__).resolve().parent
 
@@ -85,7 +87,7 @@ def main(argv=None):
                         help='Puerto que muestra Choregraphe en Preferences > Virtual Robot.')
     parser.add_argument('--python-naoqi', default=os.environ.get('NEO_PYTHON_NAOQI', r'C:\Python27\python.exe'))
     parser.add_argument('--puerto', type=int, default=5005, help='Puerto local del puente; distinto del puerto NAOqi.')
-    parser.add_argument('--solo-conexion', action='store_true', help='Prueba ALTextToSpeech y termina, sin IA.')
+    parser.add_argument('--solo-conexion', action='store_true', help='Prueba voz y termina sin Codex; OpenAI consume API.')
     parser.add_argument('--vision', action='store_true', help='Abre vision_ia.py en vez de la conversacion por texto.')
     parser.add_argument('--microfono', action='store_true', help='Requiere --vision y SpeechRecognition/PyAudio.')
     parser.add_argument('--camara-nao', action='store_true')
@@ -99,6 +101,9 @@ def main(argv=None):
     parser.add_argument('--sin-ia', action='store_true')
     parser.add_argument('--respaldo-pc', action='store_true', help='Permite respaldo de sensores NAO con fuentes PC.')
     parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
+    parser.add_argument('--voz', choices=('nao_tts', 'openai'), default='nao_tts')
+    parser.add_argument('--voz-openai', choices=VOCES, default='marin')
+    parser.add_argument('--puerto-voz', type=int, default=5008)
     parser.add_argument('--camara', default='0')
     parser.add_argument('--sin-comentarios', action='store_true')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos de la partida.')
@@ -109,8 +114,10 @@ def main(argv=None):
         args.vision = True
     if args.microfono_nao:
         args.microfono = True
-    if not all(1 <= x <= 65535 for x in (args.robot_port, args.puerto, args.puerto_sensores, args.callback_port)):
+    if not all(1 <= x <= 65535 for x in (args.robot_port, args.puerto, args.puerto_sensores, args.callback_port, args.puerto_voz)):
         parser.error('Los puertos deben estar entre 1 y 65535.')
+    if args.voz == 'openai' and len({args.puerto, args.puerto_sensores, args.callback_port, args.puerto_voz}) != 4:
+        parser.error('Los puertos locales de control, sensores, callback y voz deben ser distintos.')
     if not 0.5 <= args.espera <= 10:
         parser.error('--espera debe estar entre 0.5 y 10 segundos.')
     if args.microfono and not args.vision:
@@ -119,7 +126,11 @@ def main(argv=None):
         parser.error('--solo-conexion solo comprueba la voz; omite --vision y --movimientos.')
     try:
         python_naoqi = localizar_python_naoqi(args.python_naoqi)
-    except RuntimeError as error:
+        clave_voz = None
+        if args.voz == 'openai':
+            comprobar_biblioteca()
+            clave_voz = obtener_clave()
+    except (RuntimeError, EOFError) as error:
         print(error)
         return 1
 
@@ -128,10 +139,12 @@ def main(argv=None):
     print('Python del cliente:', sys.executable, flush=True)
     print('ENTORNO NAOqi:', args.entorno.upper(), flush=True)
     destino = ['--robot-ip', args.robot_ip, '--robot-port', str(args.robot_port)]
+    voz_args = ['--voz', 'openai', '--puerto-voz', str(args.puerto_voz),
+                '--salida-voz', 'pc' if args.entorno == 'virtual' else 'nao'] if args.voz == 'openai' else []
     try:
         comprobacion = subprocess.run(
-            [python_naoqi, '-u', str(CARPETA / 'comprobar_naoqi.py')] + destino,
-            cwd=str(CARPETA), timeout=20, check=False)
+            [python_naoqi, '-u', str(CARPETA / 'comprobar_naoqi.py')] + destino + voz_args,
+            cwd=str(CARPETA), timeout=20, check=False, env=entorno_sin_claves_api(os.environ))
     except subprocess.TimeoutExpired:
         print('NAOqi no respondio en 20 segundos. Comprueba que Choregraphe este abierto y el puerto sea correcto.')
         return FALLO_DESTINO
@@ -140,7 +153,7 @@ def main(argv=None):
         return 1
     if comprobacion.returncode:
         return comprobacion.returncode
-    if args.solo_conexion:
+    if args.solo_conexion and args.voz != 'openai':
         return 0
     if not args.solo_diagnostico and not puerto_libre(args.puerto):
         print('El puerto local {} esta ocupado. Cierra el servidor anterior o elige otro puerto libre, '
@@ -149,20 +162,20 @@ def main(argv=None):
 
     # Este lanzador es para las pruebas actuales con Codex y Luna. Se conserva
     # cualquier modelo que el usuario ya haya seleccionado explicitamente.
-    entorno = os.environ.copy()
+    entorno = entorno_sin_claves_api(os.environ)
     # El cliente Python 3 usa sus paquetes instalados. El puente Python 2
     # conserva por separado el PYTHONPATH que pueda necesitar el SDK NAOqi.
     for nombre in ('PYTHONPATH', 'PYTHONHOME'):
         entorno.pop(nombre, None)
     entorno['NEO_IA_PROVIDER'] = 'codex'
     entorno['NEO_CODEX_MODEL'] = entorno.get('NEO_CODEX_MODEL') or 'gpt-6-luna'
-    entorno_naoqi = os.environ.copy()
+    entorno_naoqi = entorno_sin_claves_api(os.environ)
     # Python 2.7 usa ASCII al escribir a una tuberia si no se indica otra
     # codificacion. Los anuncios con "gané" o "tú" deben llegar completos.
     entorno_naoqi['PYTHONIOENCODING'] = 'utf-8'
     comando = [python_naoqi, '-u', str(CARPETA / 'robot_server_ia.py')] + destino
     comando += ['--puerto', str(args.puerto), '--rondas', str(args.rondas), '--espera', str(args.espera),
-                '--entorno', args.entorno]
+                '--entorno', args.entorno, '--voz', args.voz, '--puerto-voz', str(args.puerto_voz)]
     if args.movimientos:
         comando.append('--movimientos')
     puente = None
@@ -170,7 +183,24 @@ def main(argv=None):
     sensor = None
     lector_sensor = None
     cliente_sensores = None
+    servicio_voz = None
     try:
+        if args.voz == 'openai':
+            salida_voz = 'pc' if args.entorno == 'virtual' else 'nao'
+            lector_voz = LectorOpenAI(clave_voz, args.voz_openai,
+                                      registro=CARPETA / 'diagnosticos_locales' / 'voz_openai_uso.jsonl')
+            servicio_voz = ServicioVoz(lector_voz, args.puerto_voz, salida=salida_voz)
+            entorno_naoqi['NEO_VOZ_TOKEN'] = servicio_voz.token
+            print('VOZ OPENAI: {} | salida {} | usa saldo API separado de Codex.'.format(args.voz_openai, salida_voz), flush=True)
+            prueba_voz = subprocess.run([python_naoqi, '-u', str(CARPETA / 'comprobar_naoqi.py')] +
+                destino + voz_args + ['--probar-voz'], cwd=str(CARPETA), timeout=110,
+                check=False, env=entorno_naoqi)
+            if prueba_voz.returncode:
+                return prueba_voz.returncode
+            if args.solo_conexion:
+                return 0
+            if not args.solo_diagnostico:
+                servicio_voz.preparar_cuenta()
         if args.camara_nao or args.microfono_nao:
             if not puerto_libre(args.puerto_sensores):
                 print('Puerto local de sensores ocupado:', args.puerto_sensores)
@@ -196,7 +226,7 @@ def main(argv=None):
             listo_sensor, lector_sensor = esperar_puente(sensor, timeout=20, marca='SENSORES_LISTOS')
             if not listo_sensor:
                 print('No se pudo abrir el puente de sensores NAO. Revisa FALLO SENSORES NAO.')
-                return FALLO_DESTINO if args.respaldo_pc else 1
+                return FALLO_DESTINO if args.respaldo_pc and args.voz != 'openai' else 1
             cliente_sensores = ClienteSensores(args.puerto_sensores, token)
             estado_sensores = cliente_sensores.estado()
             print('SENSORES_NAO_PARCIAL:' if estado_sensores.get('fallos') else 'SENSORES_NAO_OK:',
@@ -226,7 +256,9 @@ def main(argv=None):
         carpeta_diagnostico.mkdir(exist_ok=True)
         (carpeta_diagnostico / 'ultimo_examen.json').write_text(json.dumps({
             'robot_ip': args.robot_ip, 'robot_port': args.robot_port,
-            'voz': {'servicio': 'ALTextToSpeech', 'solicitud_aceptada': True, 'audibilidad_confirmada': False},
+            'voz': {'servicio': 'OpenAI Realtime' if args.voz == 'openai' else 'ALTextToSpeech',
+                    'salida': 'pc' if args.voz == 'openai' and args.entorno == 'virtual' else 'nao',
+                    'solicitud_aceptada': True, 'audibilidad_confirmada': False},
             'sensores': estado_sensores, 'fuentes': fuentes, 'pruebas_pc': pruebas_pc},
             ensure_ascii=False, indent=2), encoding='utf-8')
         if args.solo_diagnostico:
@@ -241,7 +273,8 @@ def main(argv=None):
         listo, lector = esperar_puente(puente)
         if not listo:
             print('El puente no llego a estar listo. Revisa los mensajes [NAOqi].')
-            return FALLO_DESTINO
+            # En modo OpenAI ya se genero audio: no repetirlo automaticamente en otro destino.
+            return 1 if args.voz == 'openai' else FALLO_DESTINO
         if args.vision:
             cliente = [sys.executable, '-u', str(CARPETA / 'vision_ia.py'),
                        '--puerto', str(args.puerto), '--camara', args.camara]
@@ -270,7 +303,7 @@ def main(argv=None):
     except KeyboardInterrupt:
         print('\nPrueba interrumpida. Cerrando el puente de esta prueba.')
         return 130
-    except OSError as error:
+    except (OSError, ErrorVoz, subprocess.TimeoutExpired) as error:
         print('No se pudo iniciar la prueba:', error)
         return 1
     finally:
@@ -292,6 +325,8 @@ def main(argv=None):
                 lector_sensor.join(timeout=2)
             if sensor.stdout is not None:
                 sensor.stdout.close()
+        if servicio_voz is not None:
+            servicio_voz.cerrar()
 
 
 if __name__ == '__main__':

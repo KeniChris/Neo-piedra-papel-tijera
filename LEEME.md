@@ -4,6 +4,12 @@ Integra conversacion con una IA real en la partida de piedra, papel o tijera.
 La laptop ejecuta la vision, transcripcion y cliente de IA. El puente NAOqi
 reproduce la voz y, si lo activas, los movimientos de tu script original.
 
+La opcion **[VOZ_OPENAI.md](VOZ_OPENAI.md)** incorpora audio de OpenAI en vez
+de Gemini o la voz nativa: `iniciar_examen.py --voz openai`. El lector usa
+saldo API separado, sin cambiar el cerebro Codex/Luna. `probar_voz.py` permite
+evaluarlo primero en la laptop. La llamada real de voz y el NAO fisico siguen
+pendientes de prueba; la integracion se valido con respuestas y SDK simulados.
+
 ## Perfil para el examen con NAO V6
 
 Usa **[EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md)** para el robot fisico. Configura
@@ -57,8 +63,9 @@ en las dependencias; ahora el mensaje identifica la biblioteca y el detalle.
 
 ## Lo primero: Codex con tu cuenta ChatGPT
 
-**Esta version usa Codex CLI por defecto. No necesita una clave ni comprar
-creditos de OpenAI API.** Inicias sesion con tu cuenta de ChatGPT y consumes
+**La conversacion usa Codex CLI por defecto. Con voz nativa no necesita una
+clave ni comprar creditos de OpenAI API. La voz OpenAI opcional si usa clave
+y saldo de API separados.** Inicias sesion con tu cuenta de ChatGPT y consumes
 tu uso disponible de Codex. No es ilimitado: si lo agotas, puedes esperar al
 restablecimiento o decidir si quieres ampliar el uso. La aplicacion corre en
 tu laptop, pero el modelo sigue en la nube y necesita internet.
@@ -320,7 +327,7 @@ No constituye una prueba de voz, movimientos fisicos ni respuestas de un LLM.
 
 ## Validacion realizada
 
-Se ejecutaron 68 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
+Se ejecutaron 81 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
 las nueve combinaciones de jugadas, limite de rondas, empates, reintentos,
 marcador, captura identificada por ventana, conexion TCP local entre procesos,
 contexto antiguo, cancelacion de decisiones pendientes, comandos con negacion,

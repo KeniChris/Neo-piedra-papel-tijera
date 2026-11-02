@@ -10,6 +10,17 @@ y reglas geométricas clasifican el gesto visible como piedra, papel o tijera.
 **El modelo de anticipación propuesto todavía no está implementado ni entrenado.**
 Neo elige al azar antes de observar la jugada del participante.
 
+## Voz OpenAI opcional
+
+Sigue **[VOZ_OPENAI.md](VOZ_OPENAI.md)** para sustituir la voz nativa por audio
+generado con OpenAI. Luna sigue conversando mediante Codex; solo la voz usa
+saldo API separado. `probar_voz.py` permite escuchar primero la laptop sin robot.
+`iniciar_examen.py --voz openai` reproduce por el NAO fisico y `--virtual --voz openai`
+por la laptop. Pide la clave oculta, sin guardarla. El perfil predeterminado
+conserva `nao_tts` para no activar consultas de pago al ejecutar los comandos
+anteriores. La voz OpenAI esta probada con respuestas/SDK simulados; falta
+validar una llamada real a la API y escuchar la salida en ambos dispositivos.
+
 ## Modo de examen con el robot físico
 
 Sigue **[EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md)**. El perfil usa NAO V6,
@@ -74,6 +85,7 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 | [EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md) | Preparación sin robot y diagnóstico el día del examen |
 | [config/neo_examen.json](config/neo_examen.json) | Perfil de robot, fuentes de sensores y modelo |
 | [POLITICAS_NEO.md](POLITICAS_NEO.md) | Personalidad y reglas de conversación; se recarga por consulta |
+| [VOZ_OPENAI.md](VOZ_OPENAI.md) | Configurar saldo, probar voz en laptop y seleccionar salida NAO |
 | [PRUEBAS_CHOREGRAPHE.md](PRUEBAS_CHOREGRAPHE.md) | Pruebas del virtual y entrega al compañero para el robot físico |
 | [LEEME.md](LEEME.md) | Arquitectura, instalación y detalles de funcionamiento |
 | [SUBIR_A_GITHUB.md](SUBIR_A_GITHUB.md) | Primer envío y actualizaciones del repositorio |
@@ -86,8 +98,10 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 - El usuario obtuvo una respuesta real de Codex con `gpt-6-luna` en su laptop.
 - El usuario confirmó `PROXY_OK` y `NAOQI_OK` en su Choregraphe y ejecutó
   cuenta atrás y pausa automática.
-- Pasaron 68 pruebas automatizadas, con CLI/API/SDK simulados y transporte
+- Pasaron 81 pruebas automatizadas, con CLI/API/SDK simulados y transporte
   local real; SpeechRecognition se comprobó con PCM sintético, sin hardware.
+  Las de voz comprueban PCM, cache, errores, cierre y orden de captura; no
+  consultan OpenAI ni prueban la pronunciacion o audibilidad del robot.
 - MediaPipe Hands se instaló y procesó un fotograma vacío en Linux/Python 3.12;
   se comprobó la resolución de dependencias para Windows x64/Python 3.11.
 - Falta comprobar con este entorno la webcam y el micrófono de la laptop,

@@ -1,5 +1,11 @@
 # Probar Neo en tu Choregraphe
 
+Para escuchar voz OpenAI por la laptop durante el ensayo virtual, sigue
+[VOZ_OPENAI.md](VOZ_OPENAI.md) y ejecuta `iniciar_examen.py --virtual --voz openai`
+con el Python de `.venv_neo`. Ese audio usa saldo de API. El texto se muestra
+en consola; no se llama simultaneamente a la sintesis nativa del virtual.
+El flujo sin esa opcion conserva la voz nativa descrita en esta guia.
+
 Para el **NAO V6 fisico el dia del examen**, empieza por
 [EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md). Ese perfil ya usa Choregraphe 2.8.7.4,
 puerto fisico inicial 9559 (segundo intento 9561), voz nativa y fuentes de camara/microfono NAO. La IP se pide

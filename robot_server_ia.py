@@ -22,19 +22,27 @@ REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
 
 
 class Robot(object):
-    def __init__(self, ip, port, simular=False, movimientos=False, entorno='configurado'):
+    def __init__(self, ip, port, simular=False, movimientos=False, entorno='configurado', voz='nao_tts', puerto_voz=5008):
         self.simular = simular
         self.movimientos = movimientos
         self.entorno = entorno
+        self.voz = voz
+        self.salida_voz = 'pc' if entorno == 'virtual' and voz == 'openai' else 'nao'
+        self.audio = None
         if not simular:
             from naoqi import ALProxy
+            if voz == 'openai':
+                from audio_neo import ClienteVoz, SalidaAudioNAO
+                salida = SalidaAudioNAO(ip, port) if self.salida_voz == 'nao' else None
+                self.audio = ClienteVoz(puerto_voz, salida=salida)
             ip = cadena_naoqi(ip)
             port = int(port)
-            self.tts = ALProxy(cadena_naoqi('ALTextToSpeech'), ip, port)
-            try:
-                self.tts.setLanguage(cadena_naoqi('Spanish'))
-            except Exception:
-                print('No se pudo seleccionar Spanish; se conserva el idioma de NAOqi.')
+            if voz == 'nao_tts':
+                self.tts = ALProxy(cadena_naoqi('ALTextToSpeech'), ip, port)
+                try:
+                    self.tts.setLanguage(cadena_naoqi('Spanish'))
+                except Exception:
+                    print('No se pudo seleccionar Spanish; se conserva el idioma de NAOqi.')
             if movimientos:
                 self.postura = ALProxy(cadena_naoqi('ALRobotPosture'), ip, port)
                 self.motion = ALProxy(cadena_naoqi('ALMotion'), ip, port)
@@ -44,8 +52,14 @@ class Robot(object):
         print('NEO:', texto)
         if self.simular:
             time.sleep(0.01)
+        elif self.audio is not None:
+            self.audio.decir(texto)
         else:
             self.tts.say(cadena_naoqi(texto))
+
+    def cerrar(self):
+        if self.audio is not None:
+            self.audio.cerrar()
 
     def ojos(self, color):
         if not self.simular and self.movimientos:
@@ -190,11 +204,19 @@ class Sesion(object):
         self.publicar()
         self.robot.ojos(0x0000FF)
         self.robot.preparar()
-        voz = threading.Thread(target=self.decir, args=('Piedra, papel o tijera.',))
+        errores_voz = []
+        def cuenta_atras():
+            try:
+                self.decir('Piedra, papel o tijera.')
+            except Exception as error:
+                errores_voz.append(error)
+        voz = threading.Thread(target=cuenta_atras)
         voz.daemon = True
         voz.start()
         self.robot.sacudir()
         voz.join()
+        if errores_voz:
+            raise errores_voz[0]
         if self.closed.is_set():
             return
         if self.pause_requested.is_set():
@@ -291,7 +313,8 @@ class Sesion(object):
         lector.daemon = True
         lector.start()
         self.enviar({'type': 'hello', 'protocol': 1, 'simulado': self.robot.simular,
-                     'movimientos': self.robot.movimientos, 'entorno': getattr(self.robot, 'entorno', 'configurado')})
+                     'movimientos': self.robot.movimientos, 'entorno': getattr(self.robot, 'entorno', 'configurado'),
+                     'voz': getattr(self.robot, 'voz', 'nao_tts'), 'salida_voz': getattr(self.robot, 'salida_voz', 'nao')})
         self.publicar()
         self.decir('Hola, soy Neo. Di empezar para jugar, o Neo seguido de una pregunta para conversar.')
         while not self.closed.is_set():
@@ -303,6 +326,8 @@ class Sesion(object):
                 self.procesar(dato)
             except Exception as error:
                 print('Fallo del puente:', type(error).__name__)
+                if getattr(self.robot, 'voz', 'nao_tts') == 'openai':
+                    print('Detalle de voz:', str(error))
                 with self.lock:
                     self.estado.pausar('fallo_puente')
                 self.publicar()
@@ -319,10 +344,12 @@ def main():
     parser.add_argument('--simular', action='store_true', help='Sin NAOqi: solo imprime lo que diria Neo.')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos del script original.')
     parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
+    parser.add_argument('--voz', choices=('nao_tts', 'openai'), default='nao_tts')
+    parser.add_argument('--puerto-voz', type=int, default=5008)
     args = parser.parse_args()
     if not 0.5 <= args.espera <= 10:
         parser.error('--espera debe estar entre 0.5 y 10 segundos.')
-    robot = Robot(args.robot_ip, args.robot_port, args.simular, args.movimientos, args.entorno)
+    robot = Robot(args.robot_ip, args.robot_port, args.simular, args.movimientos, args.entorno, args.voz, args.puerto_voz)
     servidor = socket.socket()
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     servidor.bind(('127.0.0.1', args.puerto))
@@ -345,6 +372,7 @@ def main():
         print('Puente cerrado.')
     finally:
         servidor.close()
+        robot.cerrar()
 
 
 if __name__ == '__main__':

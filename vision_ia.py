@@ -275,6 +275,7 @@ def main():
                 'Destino NAOqi: {}'.format(conexion.hello.get('entorno', 'configurado').upper()),
                 'Fuentes: camara {} | micro {}'.format(cap.origen, estado_microfono['origen']),
                 'Audio entrada: {}'.format(estado_microfono['estado']),
+                'Voz: {} | salida {}'.format(conexion.hello.get('voz', 'nao_tts'), conexion.hello.get('salida_voz', 'nao')),
                 'Gesto: {} | {}'.format(sena or 'invalido / sin mano', fase),
                 'Neo {} - Jugador {}'.format(puntos['neo'], puntos['jugador']),
                 estado_ia,
@@ -283,7 +284,8 @@ def main():
             if conexion.hello.get('simulado'):
                 lineas.append('ROBOT SIMULADO - sin voz ni movimiento fisicos')
             elif conexion.hello.get('entorno') == 'virtual':
-                lineas.append('CHOREGRAPHE VIRTUAL - voz como texto; sensores PC')
+                lineas.append('CHOREGRAPHE VIRTUAL - sensores PC; voz ' +
+                              ('OpenAI en PC' if conexion.hello.get('voz') == 'openai' else 'como texto'))
             # QVGA basta para la captura del NAO; amplia solo la vista para
             # que el estado y las teclas no queden cortados por su anchura.
             if frame.shape[1] < 640:
