@@ -30,6 +30,45 @@ class ErrorVoz(RuntimeError):
     pass
 
 
+def texto_error_seguro(valor, clave='', limite=700):
+    if not isinstance(valor, str):
+        return ''
+    if clave:
+        valor = valor.replace(clave, '[CLAVE_OCULTA]')
+    valor = re.sub(r'(?i)\bbearer\s+(?:\[[^\]]*\]|[^\s\x22\x27,}\]]+)', 'Bearer [CLAVE_OCULTA]', valor)
+    valor = re.sub(r'(?i)\bsk-[a-z0-9_-]+', '[CLAVE_OCULTA]', valor)
+    valor = ''.join(c if c.isprintable() else ' ' for c in valor)
+    return valor[:limite]
+
+
+def error_proveedor(error, etapa, clave, estado_http=None):
+    """Conserva el motivo del proveedor, sin volcar excepciones ni cabeceras."""
+    error = error if isinstance(error, dict) else {}
+    codigo = error.get('code')
+    prefijo = 'OpenAI rechazo una solicitud Realtime.'
+    if codigo in ('insufficient_quota', 'credit_balance_exhausted', 'billing_hard_limit_reached',
+                  'organization_spend_limit_exceeded', 'project_spend_limit_exceeded'):
+        prefijo = 'OpenAI rechazo la voz por saldo o limite de API. Revisa Billing y Usage.'
+    elif codigo in ('invalid_api_key', 'incorrect_api_key') or estado_http == 401:
+        prefijo = 'OpenAI no acepto la credencial de API de voz.'
+    elif codigo in ('model_not_found', 'invalid_model'):
+        prefijo = 'El modelo solicitado no esta disponible o no es accesible para este proyecto.'
+    elif codigo in ('insufficient_permissions', 'permission_denied'):
+        prefijo = 'OpenAI rechazo los permisos de la solicitud. Revisa la clave y el proyecto.'
+    elif codigo in ('unknown_parameter', 'invalid_parameter', 'invalid_value', 'invalid_event'):
+        prefijo = 'OpenAI rechazo un parametro o el formato de la solicitud.'
+    elif estado_http == 429:
+        prefijo = 'OpenAI limito la voz (429). Revisa el codigo para distinguir saldo y velocidad.'
+    detalle = {'etapa': etapa}
+    if type(estado_http) is int:
+        detalle['http'] = estado_http
+    for nombre in ('type', 'code', 'param', 'event_id', 'message'):
+        limpio = texto_error_seguro(error.get(nombre), clave, 700 if nombre == 'message' else 150)
+        if limpio:
+            detalle[nombre] = limpio
+    return ErrorVoz(prefijo + '\nDetalle seguro: ' + json.dumps(detalle, ensure_ascii=True))
+
+
 def entorno_sin_claves_api(entorno):
     limpio = dict(entorno)
     for nombre in ('OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_ADMIN_KEY'):
@@ -155,18 +194,27 @@ class LectorOpenAI:
                 self._bytes_cache -= len(antiguo)
             return pcm
 
-    def _generar(self, texto):
+    def comprobar_sesion(self):
+        """Solo conecta y confirma session.update; no crea una Response de pago."""
+        with self._lock:
+            if self._cerrado.is_set():
+                raise ErrorVoz('El lector de voz ya esta cerrado.')
+            return self._generar(None, solo_sesion=True)
+
+    def _generar(self, texto, solo_sesion=False):
         conectar = self._conectar
         if conectar is None:
             comprobar_biblioteca()
             import websocket
             conectar = websocket.create_connection
         ws = None
+        etapa = 'conexion'
         try:
             # Una conexion por frase evita reenviar un historial de audio creciente.
             ws = conectar('wss://api.openai.com/v1/realtime?model=' + MODELO,
                           header=['Authorization: Bearer ' + self._clave], timeout=15)
             self._ws = ws
+            etapa = 'esperando session.created'
             fin = time.monotonic() + 45
             audio = bytearray()
             transcripcion = ''
@@ -180,12 +228,10 @@ class LectorOpenAI:
                 evento = json.loads(ws.recv())
                 tipo = evento.get('type')
                 if tipo == 'error':
-                    codigo = evento.get('error', {}).get('code', '')
-                    if codigo in ('insufficient_quota', 'credit_balance_exhausted', 'billing_hard_limit_reached'):
-                        raise ErrorVoz('OpenAI rechazo la voz por saldo o limite de API. Revisa Billing y Usage.')
-                    raise ErrorVoz('OpenAI rechazo la solicitud de voz. Revisa modelo, clave y limites de API.')
+                    raise error_proveedor(evento.get('error'), etapa, self._clave)
                 if tipo == 'session.created':
-                    ws.send(json.dumps({'type': 'session.update', 'session': {
+                    etapa = 'session.update'
+                    ws.send(json.dumps({'type': 'session.update', 'event_id': 'neo_config_voz', 'session': {
                         'type': 'realtime', 'instructions': INSTRUCCIONES, 'output_modalities': ['audio'],
                         'max_output_tokens': 1024, 'tools': [],
                         'audio': {'input': {'turn_detection': None},
@@ -194,10 +240,16 @@ class LectorOpenAI:
                     formato = evento.get('session', {}).get('audio', {}).get('output', {}).get('format', {})
                     if formato.get('type') != 'audio/pcm' or formato.get('rate') != TASA:
                         raise ErrorVoz('OpenAI no confirmo PCM mono de 24 kHz. No se reprodujo audio.')
-                    ws.send(json.dumps({'type': 'conversation.item.create', 'item': {
+                    if solo_sesion:
+                        return {'modelo': MODELO, 'voz': self.voz, 'formato': formato,
+                                'respuesta_creada': False}
+                    etapa = 'conversation.item.create'
+                    ws.send(json.dumps({'type': 'conversation.item.create', 'event_id': 'neo_texto_voz', 'item': {
                         'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': texto}]}}))
+                    etapa = 'response.create'
                     self.solicitudes += 1
-                    ws.send(json.dumps({'type': 'response.create', 'response': {'output_modalities': ['audio']}}))
+                    ws.send(json.dumps({'type': 'response.create', 'event_id': 'neo_generar_voz',
+                                        'response': {'output_modalities': ['audio']}}))
                     enviada = True
                 elif tipo == 'response.output_audio.delta' and enviada:
                     audio.extend(base64.b64decode(evento['delta'], validate=True))
@@ -214,6 +266,9 @@ class LectorOpenAI:
                             if c.get('type') == 'output_audio')
                     if respuesta.get('status') != 'completed' or not audio or len(audio) % 2:
                         self._anotar(audio, uso, False)
+                        detalles = respuesta.get('status_details') or {}
+                        if isinstance(detalles, dict) and detalles.get('error'):
+                            raise error_proveedor(detalles['error'], 'response.done', self._clave)
                         raise ErrorVoz('OpenAI no completo una frase PCM valida. No se reprodujo ni reintento.')
                     if normalizar_lectura(texto) != normalizar_lectura(transcripcion):
                         self._anotar(audio, uso, False)
@@ -225,11 +280,18 @@ class LectorOpenAI:
         except Exception as error:
             # Las excepciones de red pueden incluir la cabecera Authorization.
             estado = getattr(error, 'status_code', None)
-            if estado == 401:
-                raise ErrorVoz('OpenAI no acepto la clave API de voz (401).') from None
-            if estado == 429:
-                raise ErrorVoz('OpenAI limito la voz (429). Revisa saldo y limites en tu panel.') from None
-            raise ErrorVoz('Fallo la conexion o el formato Realtime. No se reintento ni cambio de proveedor.') from None
+            if type(estado) is int:
+                detalle = {}
+                try:
+                    cuerpo = getattr(error, 'resp_body', '') or ''
+                    if isinstance(cuerpo, (str, bytes)) and len(cuerpo) <= 16384:
+                        dato = json.loads(cuerpo)
+                        detalle = dato.get('error', {}) if isinstance(dato, dict) else {}
+                except (ValueError, UnicodeError):
+                    pass
+                raise error_proveedor(detalle, etapa, self._clave, estado) from None
+            raise ErrorVoz('Fallo la conexion o el formato Realtime en {} ({}). '
+                           'No se reintento ni cambio de proveedor.'.format(etapa, type(error).__name__)) from None
         finally:
             if ws is not None:
                 try:

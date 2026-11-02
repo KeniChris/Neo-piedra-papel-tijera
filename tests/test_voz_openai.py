@@ -1,6 +1,7 @@
 """OpenAI y SDK FALSOS; HTTP local real y PCM sintetico. Sin pagos ni hardware."""
 import base64
 import contextlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
 import os
@@ -23,6 +24,7 @@ from iniciar_examen import main as examen
 from robot_server_ia import Robot, Sesion
 from voz_openai import (ErrorVoz, LectorOpenAI, ServicioVoz, coste_estimado,
                         entorno_sin_claves_api, obtener_clave)
+import probar_voz
 
 PCM = struct.pack('<hhh', -100, 0, 100)
 USO = {'input_tokens': 30, 'output_tokens': 22, 'total_tokens': 52,
@@ -57,6 +59,117 @@ class WebSocketFalso:
 
 
 class PruebasRealtime(unittest.TestCase):
+    def test_error_identifica_parametro_y_evento_sin_mostrar_claves(self):
+        clave = 'CLAVE_PRIVADA_DE_PRUEBA'
+        ws = WebSocketFalso()
+        ws.eventos = iter([{'type': 'session.created'}, {'type': 'error', 'error': {
+            'type': 'invalid_request_error', 'code': 'unknown_parameter',
+            'param': 'session.parametro_de_prueba', 'event_id': 'neo_config_voz',
+            'message': 'Unknown parameter: session.parametro_de_prueba. ' + clave +
+                       ' Authorization: Bearer sk-proj-OTRA_CLAVE_DE_PRUEBA\n'}}])
+        conectar = Mock(return_value=ws)
+        lector = LectorOpenAI(clave, conectar=conectar)
+        with self.assertRaises(ErrorVoz) as error:
+            lector.sintetizar('Hola.')
+        mensaje = str(error.exception)
+        self.assertIn('unknown_parameter', mensaje)
+        self.assertIn('session.parametro_de_prueba', mensaje)
+        self.assertIn('neo_config_voz', mensaje)
+        self.assertNotIn(clave, mensaje)
+        self.assertNotIn('sk-proj-', mensaje)
+        self.assertNotIn('OTRA_CLAVE_DE_PRUEBA', mensaje)
+        self.assertEqual(lector.solicitudes, 0)
+        conectar.assert_called_once()
+        self.assertTrue(ws.cerrado)
+
+    def test_diagnostico_confirma_configuracion_sin_crear_respuesta(self):
+        ws = WebSocketFalso()
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        resultado = lector.comprobar_sesion()
+        self.assertFalse(resultado['respuesta_creada'])
+        self.assertEqual(lector.solicitudes, 0)
+        self.assertFalse(lector._cache)
+        self.assertEqual([e['type'] for e in ws.enviados], ['session.update'])
+        self.assertTrue(ws.cerrado)
+
+    def test_cli_diagnostico_no_abre_pyaudio_ni_sintetiza(self):
+        ws = WebSocketFalso()
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        with patch('probar_voz.comprobar_biblioteca'), patch('probar_voz.obtener_clave', return_value='FALSA'), \
+             patch('probar_voz.LectorOpenAI', return_value=lector), \
+             patch('probar_voz.ReproductorPC', side_effect=AssertionError('No abrir un dispositivo de audio')), \
+             contextlib.redirect_stdout(io.StringIO()) as salida:
+            self.assertEqual(probar_voz.main(['--diagnostico-api']), 0)
+        self.assertIn('OPENAI_SESION_OK', salida.getvalue())
+        self.assertEqual(lector.solicitudes, 0)
+        self.assertTrue(lector._cerrado.is_set())
+
+    def test_http_conserva_codigo_y_mensaje_sin_cabeceras_secretas(self):
+        class ErrorHTTPDePrueba(RuntimeError):
+            status_code = 403
+            resp_body = json.dumps({'error': {'code': 'permission_denied', 'type': 'invalid_request_error',
+                'message': 'Realtime access denied. sk-proj-CLAVE_PARCIAL_DE_PRUEBA'}})
+        conectar = Mock(side_effect=ErrorHTTPDePrueba('Authorization: Bearer NO_MOSTRAR_ESTA_EXCEPCION'))
+        lector = LectorOpenAI('FALSA', conectar=conectar)
+        with self.assertRaises(ErrorVoz) as error:
+            lector.comprobar_sesion()
+        mensaje = str(error.exception)
+        self.assertIn('403', mensaje)
+        self.assertIn('permission_denied', mensaje)
+        self.assertIn('Realtime access denied', mensaje)
+        self.assertNotIn('CLAVE_PARCIAL_DE_PRUEBA', mensaje)
+        self.assertNotIn('NO_MOSTRAR_ESTA_EXCEPCION', mensaje)
+        conectar.assert_called_once()
+
+    def test_respuesta_fallida_conserva_el_motivo_del_proveedor(self):
+        ws = WebSocketFalso()
+        eventos = list(ws.eventos)
+        eventos[-1] = {'type': 'response.done', 'response': {'status': 'failed',
+            'status_details': {'type': 'failed', 'error': {'code': 'model_not_found',
+                'message': 'Modelo no disponible para el proyecto de prueba.'}}, 'usage': USO}}
+        ws.eventos = iter(eventos)
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        with self.assertRaisesRegex(ErrorVoz, 'model_not_found'):
+            lector.sintetizar('Hola, soy Neo.')
+        self.assertFalse(lector._cache)
+        self.assertTrue(ws.cerrado)
+
+    def test_rechazo_http_real_del_cliente_websocket_muestra_motivo_seguro(self):
+        try:
+            import websocket
+        except ImportError:
+            self.skipTest('Requiere websocket-client; se incluye en requirements_examen.txt')
+        cuerpo = json.dumps({'error': {'code': 'permission_denied', 'message': 'Acceso de prueba rechazado.'}}).encode()
+        class RechazoLocal(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def do_GET(self):
+                self.send_response(403)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(cuerpo)))
+                self.end_headers()
+                self.wfile.write(cuerpo)
+        servidor = ThreadingHTTPServer(('127.0.0.1', 0), RechazoLocal)
+        hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
+        hilo.start()
+        def conectar(url, **kwargs):
+            return websocket.create_connection('ws://127.0.0.1:{}/realtime'.format(servidor.server_port),
+                                               http_no_proxy=['127.0.0.1'], **kwargs)
+        lector = LectorOpenAI('CLAVE_FALSA_SOLO_PARA_SERVIDOR_LOCAL', conectar=conectar)
+        try:
+            with self.assertRaises(ErrorVoz) as error:
+                lector.comprobar_sesion()
+            self.assertIn('403', str(error.exception))
+            self.assertIn('permission_denied', str(error.exception))
+            self.assertIn('Acceso de prueba rechazado', str(error.exception))
+            self.assertNotIn('CLAVE_FALSA', str(error.exception))
+            self.assertEqual(lector.solicitudes, 0)
+        finally:
+            lector.cerrar()
+            servidor.shutdown()
+            servidor.server_close()
+            hilo.join(2)
+
     def test_flujo_pcm_transcripcion_y_cache_sin_nueva_consulta(self):
         ws = WebSocketFalso()
         conectar = Mock(return_value=ws)
