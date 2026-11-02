@@ -15,7 +15,7 @@ import threading
 import time
 import unicodedata
 
-from estado_juego import AVISO_REINTENTO
+from estado_juego import ANUNCIOS_JUGADA, AVISO_REINTENTO, JUGADAS
 
 MODELO = 'gpt-realtime-2.1-mini'
 VOCES = ('marin', 'cedar', 'coral', 'alloy', 'ash', 'ballad', 'echo', 'sage', 'shimmer', 'verse')
@@ -395,8 +395,9 @@ class ServicioVoz:
         self.hilo.join(timeout=2)
 
     def preparar_cuenta(self, reintentos=1):
-        print('Preparando cuenta atras y ayuda de captura con OpenAI; estas consultas consumen API.', flush=True)
+        print('Preparando cuenta atras, jugadas y ayuda de captura con OpenAI; estas consultas consumen API.', flush=True)
         frases = ['Piedra, papel o tijera.', 'Ya.']
+        frases.extend(ANUNCIOS_JUGADA[jugada] for jugada in JUGADAS)
         if reintentos:
             frases.append(AVISO_REINTENTO)
         for frase in frases:

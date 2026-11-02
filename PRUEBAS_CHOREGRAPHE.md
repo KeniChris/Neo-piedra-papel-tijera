@@ -195,6 +195,17 @@ python probar_choregraphe.py --robot-port $puertoNao --vision --movimientos
 Son los movimientos del programa recibido. Tijera es una pose simbólica del
 brazo con la mano abierta; no se articulan dos dedos de forma independiente.
 La IA solo conversa y propone acciones del juego; no escribe trayectorias.
+Al confirmar la jugada humana, voz y pose de Neo se inician en paralelo con
+su eleccion previamente guardada. No cambia esa eleccion para ganar.
+Para ensayar con Verse y el perfil actual:
+
+```powershell
+.\.venv_neo\Scripts\python.exe iniciar_examen.py --virtual --voz openai --movimientos
+```
+
+El programa dice «Piedra», «Papel» o «Tijera» mientras ejecuta la pose
+configurada. El inicio de ambas tareas se coordina por software; falta
+comprobar la sincronizacion percibida y los movimientos en el NAO fisico.
 
 Si ya funcionan SpeechRecognition y PyAudio en ese Python 3:
 

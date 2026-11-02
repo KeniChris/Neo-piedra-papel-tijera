@@ -265,6 +265,23 @@ class PruebasSocket(unittest.TestCase):
         self.c.comando('continuar')
         self.assertEqual(self.c.snapshot()['rondas_completadas'], 3)
 
+    def test_revela_la_eleccion_previa_aunque_pierda_contra_el_humano(self):
+        from unittest.mock import Mock
+        self.sesion.robot.decir = Mock()
+        self.sesion.robot.mostrar = Mock()
+        self.c.comando('iniciar')
+        estado = self.fase('capturando')
+        self.assertEqual(self.sesion.estado._jugada_neo, 'piedra')
+        elegir_despues = Mock(side_effect=AssertionError('No elegir tras ver la mano'))
+        self.sesion.estado.elegir = elegir_despues
+        self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+        estado = self.fase('entre_rondas')
+        esperar(lambda: any('Marcador:' in c.args[0] for c in self.sesion.robot.decir.call_args_list))
+        self.assertEqual(estado['ultima_ronda'], {'numero': 1, 'jugador': 'papel', 'neo': 'piedra', 'ganador': 'jugador'})
+        self.sesion.robot.mostrar.assert_called_once_with('piedra')
+        self.sesion.robot.decir.assert_any_call('Piedra.')
+        elegir_despues.assert_not_called()
+
     def test_timeout_pausa_sin_puntos_y_reintento(self):
         self.c.comando('iniciar')
         estado = self.fase('capturando')

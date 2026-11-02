@@ -331,7 +331,7 @@ No constituye una prueba de voz, movimientos fisicos ni respuestas de un LLM.
 
 ## Validacion realizada
 
-Se ejecutaron 103 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
+Se ejecutaron 108 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
 las nueve combinaciones de jugadas, limite de rondas, empates, reintentos,
 marcador, captura identificada por ventana, conexion TCP local entre procesos,
 contexto antiguo, cancelacion de decisiones pendientes, comandos con negacion,

@@ -24,6 +24,14 @@ el puno antes de iniciar. La mejora geometrica se prueba con landmarks sintetico
 el acierto con su camara y postura debe comprobarse. Los anuncios de resultado
 y marcador se envian en un solo bloque para evitar tres consultas de voz.
 El usuario ya obtuvo una respuesta real con Codex y `gpt-6-luna` (5282 ms).
+El usuario confirma que --solo-camara funciona. No equivale a medir precision.
+Sesion.revelar_jugada anuncia el nombre corto mientras ejecuta la pose original
+si --movimientos esta activado. Siempre usa la eleccion fijada antes de captar
+la mano; no es prediccion ni respuesta ganadora adaptada. Los tres nombres se
+preparan en cache con el resto de frases OpenAI (tres generaciones breves mas).
+No introduzcas poses de dedos independientes: RHand solo abre/cierra el conjunto.
+Tijera sigue siendo simbolica con mano abierta y brazo mas elevado. No cambies
+los angulos ni actives motores por defecto. El NAO fisico sigue sin validar.
 El usuario no tendra acceso al robot fisico hasta el examen. Choregraphe es
 2.8.7.4-win64-vs2015, robot NAO V6 y puerto fisico confirmado por el usuario
 9559. El proyecto del companero probado con NAO usa 9561 en su .env (aunque

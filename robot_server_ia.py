@@ -13,7 +13,7 @@ try:
 except ImportError:
     import Queue as queue
 
-from estado_juego import AVISO_REINTENTO, EstadoJuego, JUGADAS, texto_hablable
+from estado_juego import ANUNCIOS_JUGADA, AVISO_REINTENTO, EstadoJuego, JUGADAS, texto_hablable
 from naoqi_compat import cadena_naoqi
 
 REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
@@ -200,6 +200,30 @@ class Sesion(object):
             else:
                 self.decir('Pausamos. Di continuar cuando estes listo.')
 
+    def revelar_jugada(self, jugada):
+        """Inicia voz y pose juntas; el argumento viene de la eleccion previa."""
+        if jugada not in JUGADAS:
+            raise ValueError('Jugada de revelacion no valida')
+        if self.closed.is_set():
+            return
+        errores_voz = []
+        def anunciar():
+            try:
+                self.decir(ANUNCIOS_JUGADA[jugada])
+            except Exception as error:
+                errores_voz.append(error)
+        voz = threading.Thread(target=anunciar)
+        voz.daemon = True
+        voz.start()
+        try:
+            # Mismas poses, angulos y velocidades del programa recibido.
+            # Solo envia comandos de motor si se activo --movimientos.
+            self.robot.mostrar(jugada)
+        finally:
+            voz.join()
+        if errores_voz:
+            raise errores_voz[0]
+
     def ronda(self):
         with self.lock:
             if not self.estado.preparar_ronda():
@@ -263,13 +287,13 @@ class Sesion(object):
             self.pausar('sin_jugada_valida')
             return
         self.publicar()
-        self.robot.mostrar(resultado['neo'])
+        self.revelar_jugada(resultado['neo'])
         colores = {'empate': 0xFFFF00, 'jugador': 0xFF0000, 'neo': 0x00FF00}
         self.robot.ojos(colores[resultado['ganador']])
         frases = {'empate': 'Empatamos.', 'jugador': 'Ganaste esta ronda.', 'neo': 'Gané esta ronda.'}
         cierre = (self.estado.frase_final() if self.estado.fase == 'terminada'
                   else 'Di siguiente cuando quieras continuar.')
-        self.decir('Tú sacaste {} y yo {}. {} {} {}'.format(resultado['jugador'], resultado['neo'],
+        self.decir('Tú sacaste {}. {} {} {}'.format(resultado['jugador'],
                    frases[resultado['ganador']], self.estado.frase_marcador(), cierre))
         self.enviar({'type': 'event', 'event': 'comentario_ronda', 'state': self.estado.snapshot()})
 
