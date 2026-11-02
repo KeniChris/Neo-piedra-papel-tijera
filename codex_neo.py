@@ -7,6 +7,8 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 
@@ -68,6 +70,16 @@ class CodexLocal:
         self.comando = comando or localizar_codex()
         self.modelo = modelo or os.environ.get('NEO_CODEX_MODEL', '').strip() or None
         self.timeout = timeout
+        self._cancelado = threading.Event()
+        self._cerrado = threading.Event()
+        self._consulta_lock = threading.Lock()
+
+    def cancelar(self):
+        self._cancelado.set()
+
+    def cerrar(self):
+        self._cerrado.set()
+        self.cancelar()
 
     def _ejecutar(self, args, prompt=None, cwd=None, timeout=None):
         kwargs = {'stdin': subprocess.PIPE, 'stdout': subprocess.PIPE, 'stderr': subprocess.PIPE,
@@ -77,16 +89,34 @@ class CodexLocal:
             kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         else:
             kwargs['start_new_session'] = True
+        proceso = None
         try:
+            if self._cerrado.is_set() or self._cancelado.is_set():
+                raise ErrorCodex('Consulta Codex cancelada.')
             proceso = subprocess.Popen(self.comando + args, **kwargs)
-            try:
-                salida, errores = proceso.communicate(prompt, timeout=timeout or self.timeout)
-            except subprocess.TimeoutExpired:
-                detener_proceso(proceso)
-                proceso.communicate(timeout=5)
-                raise ErrorCodex('Codex excedio el tiempo de espera. El juego sigue disponible; no se reintenta automaticamente.')
+            fin = time.monotonic() + (timeout or self.timeout)
+            entrada = prompt
+            while True:
+                if self._cerrado.is_set() or self._cancelado.is_set():
+                    raise ErrorCodex('Consulta Codex cancelada.')
+                restante = fin - time.monotonic()
+                if restante <= 0:
+                    raise ErrorCodex('Codex excedio el tiempo de espera. El juego sigue disponible; no se reintenta automaticamente.')
+                try:
+                    salida, errores = proceso.communicate(entrada, timeout=min(.2, restante))
+                    break
+                except subprocess.TimeoutExpired:
+                    entrada = None
         except (OSError, subprocess.SubprocessError):
             raise ErrorCodex('No se pudo ejecutar Codex CLI. Revisa codex --version en esta terminal.')
+        finally:
+            if proceso is not None and proceso.poll() is None:
+                detener_proceso(proceso)
+                try:
+                    proceso.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proceso.kill()
+                    proceso.communicate(timeout=2)
         if proceso.returncode != 0:
             mensaje = (salida + '\n' + errores).lower()
             if any(x in mensaje for x in ('limit', 'quota', 'credits', 'rate_limit')):
@@ -102,13 +132,23 @@ class CodexLocal:
             raise ErrorCodex('Codex no indica inicio de sesion con ChatGPT. Ejecuta codex login y elige tu cuenta ChatGPT.')
 
     def responder(self, instrucciones, entrada, schema):
+        with self._consulta_lock:
+            if self._cerrado.is_set():
+                raise ErrorCodex('El cliente Codex esta cerrado.')
+            self._cancelado.clear()
+            try:
+                return self._responder(instrucciones, entrada, schema)
+            except OSError:
+                raise ErrorCodex('No se pudo preparar o leer la carpeta temporal de Codex.') from None
+
+    def _responder(self, instrucciones, entrada, schema):
         self.verificar_sesion()
         prompt = (instrucciones + '\n\n'
                   'Esta es una prueba local de interaccion con un robot. No leas archivos, '
                   'no uses herramientas, no ejecutes comandos y no modifiques el proyecto. '
                   'Responde solo el objeto JSON solicitado; Python aplicara la accion si es valida.\n'
                   + json.dumps(entrada, ensure_ascii=False))
-        with tempfile.TemporaryDirectory(prefix='neo_codex_') as temporal:
+        with tempfile.TemporaryDirectory(prefix='neo_codex_', ignore_cleanup_errors=True) as temporal:
             schema_path = Path(temporal) / 'respuesta.schema.json'
             output_path = Path(temporal) / 'respuesta.json'
             schema_path.write_text(json.dumps(schema), encoding='utf-8')

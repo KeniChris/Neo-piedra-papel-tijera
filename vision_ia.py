@@ -148,6 +148,44 @@ def escuchar(conexion, conversador, origen='pc', puerto_sensores=5006, estado_mi
     print('Entrada por teclas y T disponible.')
 
 
+def descartar_audio_pc(microfono):
+    stream = getattr(microfono.stream, 'pyaudio_stream', None)
+    if stream is not None:
+        disponibles = stream.get_read_available()
+        if type(disponibles) is int and disponibles > 0:
+            microfono.stream.read(disponibles)
+
+
+def alternar_microfono(conexion, habilitado=True):
+    if not habilitado:
+        print('El microfono no esta habilitado en esta ejecucion; usa T o las teclas.')
+        return None
+    silenciado = conexion.alternar_microfono()
+    print('MICROFONO SILENCIADO' if silenciado else 'MICROFONO ACTIVADO')
+    return silenciado
+
+
+def crear_boton_microfono(cv2, ventana, conexion, habilitado):
+    area = {'rect': None, 'habilitado': habilitado}
+    def pulsar(evento, x, y, flags, parametro):
+        rect = area['rect']
+        if evento == cv2.EVENT_LBUTTONDOWN and rect and rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]:
+            alternar_microfono(conexion, area['habilitado'])
+    cv2.setMouseCallback(ventana, pulsar)
+    return area
+
+
+def dibujar_boton_microfono(cv2, frame, conexion, habilitado, area):
+    alto, ancho = frame.shape[:2]
+    rect = (max(8, ancho - 244), alto - 52, ancho - 12, alto - 12)
+    area.update(rect=rect, habilitado=habilitado)
+    silenciado = conexion.microfono_silenciado
+    color = (70, 70, 70) if not habilitado else ((30, 30, 180) if silenciado else (35, 110, 35))
+    texto = 'MIC: NO HABILITADO' if not habilitado else ('MIC: SILENCIADO [V]' if silenciado else 'MIC: ACTIVO [V]')
+    cv2.rectangle(frame, rect[:2], rect[2:], color, -1)
+    cv2.putText(frame, texto, (rect[0] + 9, rect[1] + 26), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1)
+
+
 def escuchar_fuente(conexion, conversador, origen, puerto_sensores, estado_microfono):
     import speech_recognition as sr
     reconocedor = sr.Recognizer()
@@ -170,6 +208,7 @@ def escuchar_fuente(conexion, conversador, origen, puerto_sensores, estado_micro
         print('Microfono {} activo. Habla directamente; no necesitas decir el nombre del robot.'.format(origen.upper()))
         if estado_microfono is not None:
             estado_microfono['estado'] = 'listo'
+        ultimo_token = None
         while not conexion.closed.is_set():
             token, libre = conexion.voz_token()
             if not libre:
@@ -178,6 +217,9 @@ def escuchar_fuente(conexion, conversador, origen, puerto_sensores, estado_micro
             try:
                 if origen == 'nao':
                     microfono.stream.descartar()
+                elif token != ultimo_token:
+                    descartar_audio_pc(microfono)
+                ultimo_token = token
                 audio = reconocedor.listen(microfono, timeout=1, phrase_time_limit=4)
                 if not conexion.voz_valida(token):
                     continue
@@ -267,7 +309,10 @@ def main():
         if not cap.isOpened():
             print('No se pudo abrir la camara {}. Revisa la fuente seleccionada.'.format(args.fuente_camara))
             return 1
-        print('Teclas: S empezar | N siguiente | P pausa | C continuar | R reglas | M marcador | T texto | Esc salir')
+        print('Teclas: S empezar | N siguiente | P pausa | C continuar | R reglas | M marcador | V microfono | T texto | Esc salir')
+        ventana_nombre = 'Naoqi - vision y conversacion'
+        cv2.namedWindow(ventana_nombre)
+        area_microfono = crear_boton_microfono(cv2, ventana_nombre, conexion, args.microfono)
         ultimo_token = None
         filtro = GestoEstable()
         ultimo_envio = 0.0
@@ -322,6 +367,8 @@ def main():
                 estado_ia = 'SIN IA - prueba de reglas'
             elif conversador.error:
                 estado_ia = 'IA: ERROR - revisa consola'
+            elif conversador.en_curso:
+                estado_ia = 'IA: respondiendo' if conexion.hablando else 'IA: pensando...'
             elif conversador.ultimo_tiempo_ms is None:
                 estado_ia = 'IA: aun sin verificar'
             else:
@@ -329,13 +376,13 @@ def main():
             lineas = [
                 'Destino NAOqi: {}'.format(conexion.hello.get('entorno', 'configurado').upper()),
                 'Fuentes: camara {} | micro {}'.format(cap.origen, estado_microfono['origen']),
-                'Audio entrada: {}'.format(estado_microfono['estado']),
+                'Audio entrada: {}'.format('SILENCIADO [V]' if conexion.microfono_silenciado else estado_microfono['estado']),
                 'Voz: {} | salida {}'.format(conexion.hello.get('voz', 'nao_tts'), conexion.hello.get('salida_voz', 'nao')),
                 'Gesto: {} | {}'.format(sena or 'invalido / sin mano', fase),
                 ayuda,
                 'Naoqi {} - Jugador {}'.format(puntos['neo'], puntos['jugador']),
                 estado_ia,
-                'S inicio | N siguiente | P pausa | T conversar | ESC salir'
+                'S inicio | N siguiente | P pausa | V microfono | T texto | ESC salir'
             ]
             if ventana:
                 lineas.insert(6, 'Captura {:.1f}s | intento {}/{} | estable {:.0f}%'.format(
@@ -353,13 +400,17 @@ def main():
             for i, linea in enumerate(lineas):
                 cv2.putText(frame, linea, (10, 30 + i * 27), cv2.FONT_HERSHEY_SIMPLEX,
                             0.55, (0, 255, 0), 1)
-            cv2.imshow('Naoqi - vision y conversacion', frame)
+            micro_habilitado = args.microfono and estado_microfono['origen'] != 'no'
+            dibujar_boton_microfono(cv2, frame, conexion, micro_habilitado, area_microfono)
+            cv2.imshow(ventana_nombre, frame)
             key = cv2.waitKey(1) & 0xFF
             if key == 27:
                 break
             atajos = {ord('s'): 'iniciar', ord('n'): 'continuar', ord('p'): 'pausar',
                       ord('c'): 'continuar', ord('r'): 'reglas', ord('m'): 'marcador'}
-            if key in atajos:
+            if key in (ord('v'), ord('V')):
+                alternar_microfono(conexion, micro_habilitado)
+            elif key in atajos:
                 conexion.comando(atajos[key])
             elif key == ord('t') and not entrada_activa.is_set():
                 entrada_activa.set()

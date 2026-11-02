@@ -23,6 +23,20 @@ no necesitas decir Naoqi para pedir algo. Nao, Naoki, Naoji, Naoqi y Naoqui
 siguen siendo prefijos opcionales. Espera a que termine su voz; el audio
 capturado o transcrito durante una intervencion del robot se descarta.
 
+Pulsa **V** con la ventana de camara activa o haz clic en el boton **MIC**
+para silenciar/reactivar el microfono. El boton cambia de verde a rojo y
+la pantalla indica SILENCIADO. Se descarta la transcripcion que estuviera
+pendiente al pulsarlo. La camara, las teclas y la voz de Naoqi siguen disponibles.
+
+Si sigues hablando mientras Codex piensa, termina primero su respuesta y
+conserva solo una peticion pendiente. No descarta la respuesta actual por
+cada frase nueva. Puedes decir «Juguemos», «Empecemos el juego» o «Perdon,
+okay, comencemos» para iniciar directamente sin esperar a Codex. Una orden
+directa o un cambio de ronda si descarta una decision de IA ya obsoleta.
+El cierre cancela la consulta de Codex y espera su proceso antes de limpiar
+los temporales; un bloqueo residual de Windows no genera el traceback de
+TemporaryDirectory ni invalida una respuesta ya obtenida.
+
 Al terminar la partida, el marcador determina el cierre. Si gana Naoqi,
 pide un estribillo original con entonacion musical y hace una celebracion
 breve con `--movimientos`. Si gana el jugador, pide la mano, mantiene la

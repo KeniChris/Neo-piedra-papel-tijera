@@ -24,6 +24,7 @@ class ConexionNeo:
         self.hello = {}
         self.captura = {}
         self.hablando = False
+        self.microfono_silenciado = False
         self.voice_generation = 0
         self.mute_until = 0.0
         self.on_event = None
@@ -62,12 +63,20 @@ class ConexionNeo:
 
     def voz_token(self):
         with self.lock:
-            return self.voice_generation, (not self.hablando and time.monotonic() >= self.mute_until)
+            return self.voice_generation, (not self.microfono_silenciado and not self.hablando
+                                           and time.monotonic() >= self.mute_until)
 
     def voz_valida(self, token):
         with self.lock:
-            return (token == self.voice_generation and not self.hablando
+            return (token == self.voice_generation and not self.microfono_silenciado and not self.hablando
                     and time.monotonic() >= self.mute_until)
+
+    def alternar_microfono(self):
+        with self.lock:
+            self.microfono_silenciado = not self.microfono_silenciado
+            self.voice_generation += 1
+            self.mute_until = time.monotonic() + .6
+            return self.microfono_silenciado
 
     def _leer(self):
         reader = self.sock.makefile('rb')
@@ -139,6 +148,7 @@ class Conversador:
         self.condicion = threading.Condition()
         self.pendiente = None
         self.request_id = 0
+        self.cancel_generation = 0
         self.por_confirmar = {}
         self.error = ''
         self.ultimo_tiempo_ms = None
@@ -148,7 +158,8 @@ class Conversador:
         conexion.on_event = self.evento
         conexion.on_agent_result = self.confirmacion
         conexion.on_command = self.cancelar
-        threading.Thread(target=self._trabajar, daemon=True).start()
+        self.hilo = threading.Thread(target=self._trabajar, daemon=True)
+        self.hilo.start()
 
     def pedir(self, texto, evento='voz_jugador'):
         estado = self.conexion.snapshot()
@@ -159,7 +170,7 @@ class Conversador:
             if evento == 'comentario_ronda' and (self.pendiente is not None or self.en_curso):
                 return False
             self.request_id += 1
-            self.pendiente = (self.request_id, texto[:800], evento, estado)
+            self.pendiente = (self.request_id, texto[:800], evento, estado, self.cancel_generation)
             self.condicion.notify()
         return True
 
@@ -171,12 +182,18 @@ class Conversador:
         # Un comando directo del jugador invalida una decision de IA pendiente.
         with self.condicion:
             self.request_id += 1
+            self.cancel_generation += 1
             self.pendiente = None
+            self.por_confirmar.clear()
             self.error = ''
+            self.condicion.notify_all()
+        cancelar = getattr(self.cerebro, 'cancelar', None)
+        if callable(cancelar):
+            cancelar()
 
     def confirmacion(self, dato):
         with self.condicion:
-            pendiente = self.por_confirmar.pop(dato.get('request_id'), None)
+            pendiente = self.por_confirmar.get(dato.get('request_id'))
         if pendiente and dato.get('accepted'):
             usuario, partida = pendiente
             actual = self.conexion.snapshot()
@@ -187,11 +204,14 @@ class Conversador:
                 print('La respuesta de IA no se completo en audio; no se guardo como hablada.')
             else:
                 print('Respuesta de IA descartada: el contexto de la partida cambio.')
+        with self.condicion:
+            self.por_confirmar.pop(dato.get('request_id'), None)
+            self.condicion.notify_all()
 
-    def _vigente(self, request_id, estado):
+    def _vigente(self, generacion, estado):
         actual = self.conexion.snapshot()
         with self.condicion:
-            es_ultima = request_id == self.request_id and not self.parado
+            es_ultima = generacion == self.cancel_generation and not self.parado
         return (es_ultima and actual is not None and actual['version'] == estado['version']
                 and actual['fase'] in FASES_CONVERSACION and not self.conexion.closed.is_set())
 
@@ -202,47 +222,63 @@ class Conversador:
                     self.condicion.wait()
                 if self.parado:
                     return
-                request_id, texto, evento, estado = self.pendiente
+                request_id, texto, evento, estado, generacion = self.pendiente
                 self.pendiente = None
                 self.en_curso = True
-            if not self._vigente(request_id, estado):
+            if not self._vigente(generacion, estado):
                 with self.condicion:
                     self.en_curso = False
                 continue
             try:
                 respuesta = self.cerebro.responder(estado, texto, evento)
             except ErrorIA as error:
-                vigente = self._vigente(request_id, estado)
+                vigente = self._vigente(generacion, estado)
                 with self.condicion:
                     self.en_curso = False
-                    if vigente and request_id == self.request_id:
+                    if vigente and generacion == self.cancel_generation:
                         self.error = str(error)
                         print('IA NO DISPONIBLE:', self.error)
                 continue
-            with self.condicion:
-                self.en_curso = False
             self.ultimo_tiempo_ms = respuesta.pop('latencia_ms')
             self.error = ''
             origen = ('Codex real' if self.cerebro.provider == 'codex' else 'API real')
             if self.cerebro.transporte is not None:
                 origen = 'IA SIMULADA (prueba)'
             print('{}: {} ms | accion {}'.format(origen, self.ultimo_tiempo_ms, respuesta['accion']))
-            if not self._vigente(request_id, estado):
+            if not self._vigente(generacion, estado):
                 print('IA: respuesta antigua descartada antes de enviarla al robot.')
+                with self.condicion:
+                    self.en_curso = False
                 continue
             with self.condicion:
+                if generacion != self.cancel_generation or self.parado:
+                    self.en_curso = False
+                    continue
                 self.por_confirmar[request_id] = (texto, estado['partida'])
                 # Como maximo unas pocas respuestas en vuelo hacia el puente.
                 for viejo in sorted(self.por_confirmar)[:-8]:
                     self.por_confirmar.pop(viejo, None)
-            self.conexion.enviar({'type': 'agent', 'request_id': request_id,
-                                 'context_version': estado['version'], 'reply': respuesta})
+                enviado = self.conexion.enviar({'type': 'agent', 'request_id': request_id,
+                                               'context_version': estado['version'], 'reply': respuesta})
+            with self.condicion:
+                while (enviado and request_id in self.por_confirmar and not self.parado
+                       and generacion == self.cancel_generation and not self.conexion.closed.is_set()):
+                    self.condicion.wait(.1)
+                self.por_confirmar.pop(request_id, None)
+                self.en_curso = False
 
     def cerrar(self):
         with self.condicion:
             self.parado = True
             self.pendiente = None
-            self.condicion.notify()
+            self.cancel_generation += 1
+            self.por_confirmar.clear()
+            self.condicion.notify_all()
+        cerrar = getattr(self.cerebro, 'cerrar', None)
+        if callable(cerrar):
+            cerrar()
+        if threading.current_thread() is not self.hilo:
+            self.hilo.join(timeout=8)
 
 
 def normalizar(texto):
@@ -254,6 +290,9 @@ def normalizar(texto):
 
 COMANDOS = {
     'empezar': 'iniciar', 'empieza': 'iniciar', 'comenzar': 'iniciar',
+    'comencemos': 'iniciar', 'empecemos': 'iniciar', 'juguemos': 'iniciar',
+    'empecemos el juego': 'iniciar', 'comencemos el juego': 'iniciar',
+    'iniciemos': 'iniciar', 'iniciar el juego': 'iniciar',
     'vamos a jugar': 'iniciar', 'siguiente': 'continuar', 'continuar': 'continuar',
     'continua': 'continuar', 'continuemos': 'continuar', 'sigamos': 'continuar',
     'seguimos': 'continuar', 'sigue': 'continuar', 'otra ronda': 'continuar',
@@ -275,8 +314,17 @@ def procesar_texto(texto, conexion, conversador, requiere_nombre=False):
             limpio = limpio[len(nombre):].strip() or 'hola'
             dirigido = True
             break
-    if limpio in COMANDOS:
-        conexion.comando(COMANDOS[limpio])
+    candidato = limpio
+    for _ in range(5):
+        prefijo = next((p for p in ('perdon ', 'okay ', 'ok ', 'por favor ')
+                        if candidato.startswith(p)), None)
+        if prefijo is None:
+            break
+        candidato = candidato[len(prefijo):]
+    if candidato.endswith(' por favor'):
+        candidato = candidato[:-10].strip()
+    if candidato in COMANDOS:
+        conexion.comando(COMANDOS[candidato])
         return True
     if requiere_nombre and not dirigido:
         return False

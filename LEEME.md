@@ -256,6 +256,7 @@ Con la ventana de video seleccionada:
 | M | Marcador |
 | T | Abre una entrada de texto en la terminal para conversar con la IA |
 | Esc | Cierra la vision |
+| V o clic en MIC | Silencia/reactiva el microfono sin pausar la partida |
 
 Sin `--microfono`, se conserva el control por teclado y texto. Esto permite
 comprobar la IA aunque falte PyAudio o falle la transcripcion de Google.

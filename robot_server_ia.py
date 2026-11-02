@@ -482,6 +482,9 @@ class Sesion(object):
                     self.estado.pausar('fallo_puente')
                 self.publicar()
                 self.enviar({'type': 'error', 'message': 'Fallo de voz o movimiento. Revisa la consola NAOqi.'})
+                if dato.get('type') == 'agent':
+                    self.enviar({'type': 'agent_result', 'request_id': dato.get('request_id'),
+                                 'accepted': False, 'reason': 'fallo_puente'})
 
 
 def main():

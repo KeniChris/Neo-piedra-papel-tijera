@@ -225,6 +225,13 @@ Es el micrófono de la laptop. Espera a que Naoqi termine antes de hablar.
 Para conversar habla directamente, sin palabra de activacion. Tambien acepta comandos cortos
 como «empezar», «siguiente» y «pausa». La transcripción usa Google, como en
 el código recibido. Si falla, **T** permite escribir sin micrófono.
+Pulsa **V** o haz clic en **MIC** en la imagen para silenciar o reactivar
+la escucha. El indicador pasa a rojo al silenciar. Las capturas/transcripciones
+anteriores se invalidan; las teclas y la salida de voz siguen disponibles.
+«Juguemos» y «Empecemos el juego» inician sin una consulta a Codex.
+Si entra mas audio mientras piensa, conserva la respuesta actual y una sola
+peticion pendiente. Los comandos directos y cambios de ronda siguen anulando
+las decisiones que ya no corresponden al estado.
 «Continuemos» y «sigamos» tambien son comandos locales: no requieren decir
 Naoqi ni esperar a Codex. Las negaciones no se convierten en ordenes de jugar.
 

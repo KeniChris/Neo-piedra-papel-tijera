@@ -158,6 +158,48 @@ class ConexionFalsa:
 
 
 class PruebasConversacion(unittest.TestCase):
+    def test_juguemos_y_comencemos_no_esperan_a_la_ia_ni_confunden_negaciones(self):
+        c, b = ConexionFalsa(), Mock()
+        for texto in ('Juguemos', 'empecemos el juego', 'perdon okay Comencemos', 'comencemos por favor'):
+            self.assertTrue(procesar_texto(texto, c, b))
+            self.assertEqual(c.commands[-1], 'iniciar')
+        b.pedir.assert_not_called()
+        for texto in ('no juguemos', 'no comencemos', 'como se empieza el juego'):
+            procesar_texto(texto, c, b)
+        self.assertEqual(len(c.commands), 4)
+        self.assertEqual(b.pedir.call_count, 3)
+
+    def test_nuevo_audio_no_invalida_la_respuesta_actual_y_conserva_una_pendiente(self):
+        c = ConexionFalsa()
+        entro, liberar = threading.Event(), threading.Event()
+        llamadas = []
+        def transporte(payload):
+            texto = json.loads(payload['input'][-1]['content'])['jugador_dice']
+            llamadas.append(texto)
+            if texto == 'Primera pregunta':
+                entro.set()
+                liberar.wait(2)
+            return respuesta_falsa(texto='Respuesta a ' + texto)
+        b = Conversador(c, CerebroNeo(transporte=transporte), comentarios=False)
+        self.addCleanup(b.cerrar)
+        self.addCleanup(liberar.set)
+        b.pedir('Primera pregunta')
+        self.assertTrue(entro.wait(1))
+        b.pedir('Segunda pregunta')
+        b.pedir('Tercera pregunta')
+        liberar.set()
+        esperar(lambda: len(c.sent) == 1)
+        self.assertEqual(c.sent[0]['reply']['texto'], 'Respuesta a Primera pregunta')
+        self.assertEqual(llamadas, ['Primera pregunta'])
+        c.on_agent_result({'accepted': True, 'request_id': c.sent[0]['request_id'],
+                           'spoken': c.sent[0]['reply']['texto']})
+        esperar(lambda: len(c.sent) == 2)
+        self.assertEqual(c.sent[1]['reply']['texto'], 'Respuesta a Tercera pregunta')
+        self.assertEqual(llamadas, ['Primera pregunta', 'Tercera pregunta'])
+        c.on_agent_result({'accepted': True, 'request_id': c.sent[1]['request_id'],
+                           'spoken': c.sent[1]['reply']['texto']})
+        esperar(lambda: not b.en_curso)
+
     def test_continuemos_y_sigamos_son_comandos_locales_sin_nombre_ni_ia(self):
         c, b = ConexionFalsa(), Mock()
         for texto in ('continuemos', 'sigamos', 'seguimos', 'sigue', 'otra ronda',
@@ -507,6 +549,17 @@ class PruebasSocket(unittest.TestCase):
         esperar(lambda: len(brain.historia) == 2)
         self.assertEqual(brain.historia[-1]['content'], texto)
         self.assertEqual(self.c.snapshot()['marcador'], {'neo': 0, 'jugador': 0})
+
+    def test_error_del_puente_libera_confirmacion_de_ia_aun_sin_cambio_de_fase(self):
+        esperar(lambda: self.c.voice_generation >= 2 and not self.c.hablando)
+        self.sesion.robot.decir = Mock(side_effect=RuntimeError('FALLO_SDK_SIMULADO'))
+        b = Conversador(self.c, CerebroNeo(transporte=lambda _: respuesta_falsa()), comentarios=False)
+        self.addCleanup(b.cerrar)
+        b.pedir('Saluda')
+        esperar(lambda: b.ultimo_tiempo_ms is not None)
+        esperar(lambda: not b.en_curso)
+        self.assertEqual(b.por_confirmar, {})
+        self.assertEqual(self.c.snapshot()['fase'], 'esperando')
 
 
 if __name__ == '__main__':
