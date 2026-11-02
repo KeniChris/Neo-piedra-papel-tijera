@@ -16,7 +16,7 @@ import sys
 import threading
 from sensores_cliente import ClienteSensores
 from comprobar_naoqi import FALLO_DESTINO
-from voz_openai import (ErrorVoz, LectorOpenAI, ServicioVoz, VOCES, comprobar_biblioteca,
+from voz_openai import (ErrorVoz, LectorOpenAI, ServicioVoz, VOCES, VOZ_PREDETERMINADA, comprobar_biblioteca,
                         entorno_sin_claves_api, obtener_clave)
 
 CARPETA = Path(__file__).resolve().parent
@@ -102,13 +102,14 @@ def main(argv=None):
     parser.add_argument('--respaldo-pc', action='store_true', help='Permite respaldo de sensores NAO con fuentes PC.')
     parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
     parser.add_argument('--voz', choices=('nao_tts', 'openai'), default='nao_tts')
-    parser.add_argument('--voz-openai', choices=VOCES, default='marin')
+    parser.add_argument('--voz-openai', choices=VOCES, default=VOZ_PREDETERMINADA)
     parser.add_argument('--puerto-voz', type=int, default=5008)
     parser.add_argument('--camara', default='0')
     parser.add_argument('--sin-comentarios', action='store_true')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos de la partida.')
     parser.add_argument('--rondas', type=int, choices=(3, 5), default=3)
-    parser.add_argument('--espera', type=float, default=3.0)
+    parser.add_argument('--espera', type=float, default=6.0)
+    parser.add_argument('--reintentos', type=int, choices=(0, 1, 2), default=1)
     args = parser.parse_args(argv)
     if args.camara_nao or args.microfono_nao:
         args.vision = True
@@ -175,7 +176,8 @@ def main(argv=None):
     entorno_naoqi['PYTHONIOENCODING'] = 'utf-8'
     comando = [python_naoqi, '-u', str(CARPETA / 'robot_server_ia.py')] + destino
     comando += ['--puerto', str(args.puerto), '--rondas', str(args.rondas), '--espera', str(args.espera),
-                '--entorno', args.entorno, '--voz', args.voz, '--puerto-voz', str(args.puerto_voz)]
+                '--entorno', args.entorno, '--voz', args.voz, '--puerto-voz', str(args.puerto_voz),
+                '--reintentos', str(args.reintentos)]
     if args.movimientos:
         comando.append('--movimientos')
     puente = None
@@ -200,7 +202,7 @@ def main(argv=None):
             if args.solo_conexion:
                 return 0
             if not args.solo_diagnostico:
-                servicio_voz.preparar_cuenta()
+                servicio_voz.preparar_cuenta(args.reintentos)
         if args.camara_nao or args.microfono_nao:
             if not puerto_libre(args.puerto_sensores):
                 print('Puerto local de sensores ocupado:', args.puerto_sensores)

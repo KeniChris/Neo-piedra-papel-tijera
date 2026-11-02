@@ -9,6 +9,7 @@ import re
 JUGADAS = ('piedra', 'papel', 'tijera')
 GANA = set([('piedra', 'tijera'), ('papel', 'piedra'), ('tijera', 'papel')])
 ACCIONES = ('hablar', 'iniciar', 'pausar', 'continuar', 'reglas', 'marcador')
+AVISO_REINTENTO = 'Manten tu gesto frente a la camara. Reintentamos esta ronda.'
 
 
 def texto_hablable(texto, limite=280):
@@ -80,6 +81,13 @@ class EstadoJuego(object):
         self.cambiar_fase('capturando')
         self.capture_id = '{}:{}:{}'.format(self.partida, self.completadas + 1, self._intento)
         return self.capture_id
+
+    def preparar_reintento(self):
+        if self.fase != 'capturando':
+            return False
+        # Cierra el token anterior y conserva eleccion, ronda y marcador.
+        self.cambiar_fase('cuenta_atras')
+        return True
 
     def pausar(self, motivo='peticion_jugador'):
         if self.fase in ('esperando', 'terminada'):

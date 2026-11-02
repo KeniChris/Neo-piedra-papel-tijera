@@ -1,4 +1,49 @@
-"""Geometria del vision.py recibido, con proteccion para una palma degenerada."""
+"""Clasificacion geometrica y estabilidad temporal; no requiere entrenamiento."""
+
+import time
+
+JUGADAS = ('piedra', 'papel', 'tijera')
+
+
+class GestoEstable:
+    """Confirma un gesto por tiempo y muestras, sin reutilizar otra captura."""
+    def __init__(self, duracion=0.30, minimo_muestras=3, hueco_maximo=0.8):
+        self.duracion = duracion
+        self.minimo_muestras = minimo_muestras
+        self.hueco_maximo = hueco_maximo
+        self.reiniciar()
+
+    def reiniciar(self):
+        self.token = None
+        self.gesto = None
+        self.inicio = None
+        self.ultimo = None
+        self.muestras = 0
+
+    def observar(self, gesto, token, ahora=None):
+        ahora = time.monotonic() if ahora is None else ahora
+        if token != self.token or (self.ultimo is not None and
+                (ahora < self.ultimo or ahora - self.ultimo > self.hueco_maximo)):
+            self.reiniciar()
+        self.token = token
+        self.ultimo = ahora
+        if not token or gesto not in JUGADAS:
+            self.gesto, self.inicio, self.muestras = None, None, 0
+            return None
+        if gesto != self.gesto:
+            self.gesto, self.inicio, self.muestras = gesto, ahora, 1
+        else:
+            self.muestras += 1
+        if self.muestras >= self.minimo_muestras and ahora - self.inicio >= self.duracion:
+            return gesto
+        return None
+
+    def progreso(self, ahora=None):
+        if self.inicio is None:
+            return 0.0
+        ahora = self.ultimo if ahora is None else ahora
+        return min(1.0, max(0.0, (ahora - self.inicio) / self.duracion),
+                   self.muestras / float(self.minimo_muestras))
 
 
 def d(a, b):
@@ -25,10 +70,12 @@ def clasificar(lm):
     if palma < 1e-6:
         return None
     i, m, a, p = dedos_extendidos(lm)
-    if d(lm[4], lm[8]) < palma * 0.35:
-        return None
     if not (i or m or a or p):
         return None if pulgar_extendido(lm) else 'piedra'
+    # El pulgar puede tocar el indice en un puno normal. La guarda de
+    # pinza solo aplica despues de comprobar los cuatro dedos doblados.
+    if d(lm[4], lm[8]) < palma * 0.35:
+        return None
     if i and m and a and p:
         return 'papel'
     if i and m and not a and not p:

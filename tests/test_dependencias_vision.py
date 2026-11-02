@@ -14,6 +14,18 @@ import vision_ia
 
 
 class PruebasDependenciasVision(unittest.TestCase):
+    def test_solo_camara_no_arranca_codex_naoqi_ni_microfono(self):
+        with patch.object(sys, 'argv', ['vision_ia.py', '--solo-camara', '--camara', '1']), \
+             patch('vision_ia.cargar_dependencias', return_value=('cv', 'mp', 'hands')), \
+             patch('vision_ia.probar_solo_camara', return_value=0) as camara, \
+             patch('vision_ia.CerebroNeo') as ia, patch('vision_ia.ConexionNeo') as nao, \
+             patch('vision_ia.escuchar') as micro, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(vision_ia.main(), 0)
+        camara.assert_called_once_with('cv', 'mp', 'hands', '1')
+        ia.assert_not_called()
+        nao.assert_not_called()
+        micro.assert_not_called()
+
     def test_identifica_importacion_y_causa_original(self):
         for modulo in ('cv2', 'mediapipe'):
             with self.subTest(modulo=modulo):

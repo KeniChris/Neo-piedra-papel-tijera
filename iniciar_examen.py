@@ -11,7 +11,7 @@ import sys
 
 from probar_choregraphe import main as iniciar_prueba, localizar_python_naoqi
 from comprobar_naoqi import FALLO_DESTINO
-from voz_openai import VOCES, comprobar_biblioteca, entorno_sin_claves_api, obtener_clave
+from voz_openai import VOCES, VOZ_PREDETERMINADA, comprobar_biblioteca, entorno_sin_claves_api, obtener_clave
 
 CARPETA = Path(__file__).resolve().parent
 CONFIG_PREDETERMINADA = CARPETA / 'config' / 'neo_examen.json'
@@ -29,14 +29,17 @@ def cargar_config(ruta=CONFIG_PREDETERMINADA):
                   'camara', 'indice_camara_nao', 'microfono', 'voz', 'rondas', 'espera_jugada_seg',
                   'movimientos', 'puerto_control', 'puerto_sensores', 'callback_ip', 'callback_port', 'saludo_ia'}
     opcionales = {'respaldo_choregraphe', 'puerto_virtual', 'puertos_fisicos_alternativos',
-                  'voz_openai', 'puerto_voz'}
+                  'voz_openai', 'puerto_voz', 'reintentos_captura'}
     if not isinstance(config, dict) or set(config) - opcionales != requeridos:
         raise ValueError('El perfil tiene campos faltantes o desconocidos. Usa config/neo_examen.json como referencia.')
     config.setdefault('respaldo_choregraphe', False)
     config.setdefault('puerto_virtual', None)
     config.setdefault('puertos_fisicos_alternativos', [])
-    config.setdefault('voz_openai', 'marin')
+    config.setdefault('voz_openai', VOZ_PREDETERMINADA)
     config.setdefault('puerto_voz', 5008)
+    config.setdefault('reintentos_captura', 0)
+    if type(config['reintentos_captura']) is not int or config['reintentos_captura'] not in (0, 1, 2):
+        raise ValueError('reintentos_captura debe ser 0, 1 o 2.')
     if type(config['respaldo_choregraphe']) is not bool:
         raise ValueError('respaldo_choregraphe debe ser true o false.')
     if config['puerto_virtual'] is not None:
@@ -98,8 +101,9 @@ def argumentos(config, diagnostico=False, sin_ia=False, entorno='fisico'):
         '--puerto-sensores', str(config['puerto_sensores']), '--callback-port', str(config['callback_port']),
         '--indice-camara-nao', str(config['indice_camara_nao']), '--rondas', str(config['rondas']),
         '--espera', str(config['espera_jugada_seg']), '--vision', '--entorno', entorno]
+    resultado += ['--reintentos', str(config.get('reintentos_captura', 0))]
     if config['voz'] == 'openai':
-        resultado += ['--voz', 'openai', '--voz-openai', config.get('voz_openai', 'marin'),
+        resultado += ['--voz', 'openai', '--voz-openai', config.get('voz_openai', VOZ_PREDETERMINADA),
                       '--puerto-voz', str(config.get('puerto_voz', 5008))]
     if config.get('respaldo_choregraphe') or entorno == 'virtual':
         resultado.append('--respaldo-pc')

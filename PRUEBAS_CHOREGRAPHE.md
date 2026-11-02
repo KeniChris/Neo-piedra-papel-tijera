@@ -168,9 +168,23 @@ Con la ventana de video activa: **S** inicia, **N** continúa, **P** pausa,
 como ronda; un gesto no válido no suma puntos ni consume ronda.
 
 Después de ver u oír «ya», muestra y mantén piedra, papel o tijera ante la
-cámara. La ventana dura tres segundos y exige seis detecciones consecutivas
-iguales. El clasificador no detecta que el brazo esté arriba; un puño visible
+cámara. El perfil actual da seis segundos y un reintento automatico de la
+misma ronda; pide tres muestras iguales durante al menos 0.30 segundos.
+Al agotar los intentos, continuar conserva la partida y los puntos.
+El clasificador no detecta que el brazo esté arriba; un puño visible
 después de «ya» puede contar como piedra.
+
+Puedes comprobar primero el puno con la webcam sin abrir Choregraphe ni IA:
+
+```powershell
+.\.venv_neo\Scripts\python.exe vision_ia.py --solo-camara
+```
+
+La pantalla muestra landmarks, mano detectada, gesto y estabilidad. Con el
+puno completo en el encuadre debe indicar `piedra`; confirma tambien papel,
+tijera y un gesto fuera del juego antes de iniciar una partida. Esta prueba
+no usa saldo de voz. El comportamiento con la camara fisica debe evaluarlo
+el usuario; los casos geometricos automatizados usan landmarks sinteticos.
 
 Para observar los movimientos en el robot virtual:
 

@@ -7,8 +7,9 @@ reproduce la voz y, si lo activas, los movimientos de tu script original.
 La opcion **[VOZ_OPENAI.md](VOZ_OPENAI.md)** incorpora audio de OpenAI en vez
 de Gemini o la voz nativa: `iniciar_examen.py --voz openai`. El lector usa
 saldo API separado, sin cambiar el cerebro Codex/Luna. `probar_voz.py` permite
-evaluarlo primero en la laptop. La llamada real de voz y el NAO fisico siguen
-pendientes de prueba; la integracion se valido con respuestas y SDK simulados.
+evaluarlo primero en la laptop. El usuario confirmo esa voz en su laptop y
+eligio Verse. El NAO fisico sigue pendiente; las pruebas automatizadas usan
+respuestas y SDK simulados.
 
 ## Perfil para el examen con NAO V6
 
@@ -221,11 +222,14 @@ otro indice. No hay un modelo nuevo de reconocimiento de manos en este paquete.
 - Espera a que Neo termine de hablar antes de hablarle.
 - Di **empezar** para la primera ronda.
 - Al oir **ya**, muestra y manten tu jugada ante la camara. Conservamos el
-  clasificador geometrico del original. Un puno visible despues de la senal
+  clasificador geometrico del original con la guarda del puno corregida. Un puno visible despues de la senal
   puede contarse como piedra; no se esta detectando si tu brazo sigue arriba.
 - La captura utiliza solo imagenes posteriores a la apertura de esa ventana
-  y exige seis clasificaciones consecutivas iguales. La ventana dura 3 segundos.
-- Si no se ve una jugada valida en ese plazo, pasa a **pausa** y permite reintentar.
+  y exige al menos tres muestras iguales durante 0.30 segundos. El perfil
+  da 6 segundos y un reintento automatico de la misma ronda, sin cambiar la
+  eleccion de Neo ni sumar puntos si no se confirma el gesto.
+- Al agotar los intentos configurados sin confirmar gesto, pasa a **pausa**
+  y permite continuar la misma ronda.
 - Entre rondas puedes conversar: **Neo, por que perdi?**, **Neo, no estoy de
   acuerdo con ese punto**, **Neo, vas a perder**, **Neo, explicame las reglas**.
 - Di **siguiente** cuando quieras la proxima ronda. No avanza mientras quieras hablar.
@@ -327,7 +331,7 @@ No constituye una prueba de voz, movimientos fisicos ni respuestas de un LLM.
 
 ## Validacion realizada
 
-Se ejecutaron 81 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
+Se ejecutaron 103 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
 las nueve combinaciones de jugadas, limite de rondas, empates, reintentos,
 marcador, captura identificada por ventana, conexion TCP local entre procesos,
 contexto antiguo, cancelacion de decisiones pendientes, comandos con negacion,

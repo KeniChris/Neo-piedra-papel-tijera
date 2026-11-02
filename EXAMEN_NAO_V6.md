@@ -30,7 +30,7 @@ un antecedente útil, pero usaban otro programa.
 | Transcripción | SpeechRecognition con Google, español de Perú; requiere internet |
 | Conversación | Codex CLI con `gpt-6-luna` y `POLITICAS_NEO.md` |
 | Voz del robot | `ALTextToSpeech`, solicita idioma Spanish |
-| Partida | 3 rondas válidas; ventana de jugada de 3 segundos |
+| Partida | 3 rondas válidas; captura de 6 segundos y un reintento automatico |
 | Movimientos | Desactivados; se activan expresamente con `--movimientos` |
 | Respaldo | Activado: sensores PC y un intento con Choregraphe virtual si falla el destino físico al arrancar |
 | Puertos físicos | Primero 9559; después 9561 si el destino anterior falla al arrancar |
@@ -137,7 +137,11 @@ consola `Oi:` y la respuesta del modelo. Así se evalúa la conversación comple
 la demora de esta ejecución puede ser distinta.
 
 Para jugar, di **«empezar»**. Muestra y mantén el gesto dentro de la imagen
-después de «Ya». El detector exige seis fotogramas consecutivos iguales.
+después de «Ya». El detector exige al menos tres muestras iguales durante
+0.30 segundos. Si no confirma el gesto en seis segundos, da un aviso y abre
+un reintento de esa misma ronda con un token nuevo. No repite el balanceo
+del brazo ni cambia la eleccion de Neo. Al agotar los dos intentos, pausa
+conservando la partida y los puntos; di continuar para retomarla.
 Di **«siguiente»** entre rondas o **«continuar»** si se pausó por falta de gesto.
 Para preguntas libres, empieza con **«Neo»**. Habla cuando haya terminado su voz.
 
@@ -216,7 +220,7 @@ el estado del juego. No predice una jugada futura, no detecta presión ni usa
 el reloj. Codex recibe texto y estado; la transcripción de voz se envía a
 Google. No se envían las imágenes de la cámara al modelo conversacional.
 
-Pasaron **81 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
+Pasaron **103 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
 simulada, transporte local de imágenes y PCM, descarte de audio antiguo,
 suscripciones y cierre de procesos. Una prueba usa SpeechRecognition real
 con PCM sintético; se omite si no está instalado. También se ejecutó MediaPipe
@@ -226,8 +230,10 @@ falso, sin dispositivos ni consultas a un modelo real. Ninguna sustituye el
 ensayo en el salón.
 
 La ampliacion de voz se comprobo con eventos Realtime simulados y PCM
-sintetico, incluyendo TCP/HTTP locales entre procesos. No se hizo una consulta
-real a OpenAI ni se escucho el audio en esta comprobacion.
+sintetico, incluyendo TCP/HTTP locales entre procesos. En esas pruebas no se
+consulta OpenAI ni se escucha audio. Por separado, el usuario confirmo la voz
+real en su laptop y eligio Verse. Los casos del puno se prueban con landmarks
+sinteticos; hay que evaluarlos en la vista de solo camara con su propia mano.
 
 Referencias: [ALVideoDevice 2.8](https://doc.aldebaran.com/2-8/naoqi/vision/alvideodevice-api.html),
 [ALAudioDevice](https://doc.aldebaran.com/2-5/naoqi/audio/alaudiodevice-api.html)

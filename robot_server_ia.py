@@ -13,7 +13,7 @@ try:
 except ImportError:
     import Queue as queue
 
-from estado_juego import EstadoJuego, JUGADAS, texto_hablable
+from estado_juego import AVISO_REINTENTO, EstadoJuego, JUGADAS, texto_hablable
 from naoqi_compat import cadena_naoqi
 
 REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
@@ -103,11 +103,12 @@ class Robot(object):
 
 
 class Sesion(object):
-    def __init__(self, conn, robot, rondas=3, espera=3.0):
+    def __init__(self, conn, robot, rondas=3, espera=6.0, reintentos=1):
         self.conn = conn
         self.robot = robot
         self.estado = EstadoJuego(rondas)
         self.espera = espera
+        self.reintentos = reintentos
         self.closed = threading.Event()
         self.pause_requested = threading.Event()
         self.vision_ready = threading.Event()
@@ -172,6 +173,9 @@ class Sesion(object):
                     self.pause_requested.set()
                     self.vision_ready.set()
                 if dato.get('type') in ('command', 'agent'):
+                    if dato.get('type') == 'command':
+                        with self.lock:
+                            dato['_version_recibida'] = self.estado.version
                     try:
                         self.commands.put_nowait(dato)
                     except queue.Full:
@@ -192,7 +196,7 @@ class Sesion(object):
         if cambio:
             self.publicar()
             if motivo == 'sin_jugada_valida':
-                self.decir('No vi una jugada valida a tiempo. Pausamos. Di continuar para reintentar.')
+                self.decir('No pude confirmar la jugada. Conservamos esta ronda y los puntos. Di continuar.')
             else:
                 self.decir('Pausamos. Di continuar cuando estes listo.')
 
@@ -222,24 +226,39 @@ class Sesion(object):
         if self.pause_requested.is_set():
             self.pausar('peticion_jugador')
             return
-        self.decir('Ya.')
-        if self.closed.is_set() or self.pause_requested.is_set():
-            self.pausar('peticion_jugador')
-            return
-        with self.lock:
-            self.vision = None
-            self.vision_mano = False
-            self.vision_ready.clear()
-            self.estado.abrir_captura()
-        self.publicar()
-        self.vision_ready.wait(self.espera)
-        if self.closed.is_set():
-            return
-        if self.pause_requested.is_set():
-            self.pausar('peticion_jugador')
-            return
-        with self.lock:
-            resultado = self.estado.registrar(*self.vision) if self.vision else None
+        resultado = None
+        for intento in range(self.reintentos + 1):
+            if intento:
+                self.decir(AVISO_REINTENTO)
+            if self.closed.is_set() or self.pause_requested.is_set():
+                self.pausar('peticion_jugador')
+                return
+            self.decir('Ya.')
+            if self.closed.is_set() or self.pause_requested.is_set():
+                self.pausar('peticion_jugador')
+                return
+            with self.lock:
+                self.vision = None
+                self.vision_mano = False
+                self.vision_ready.clear()
+                token = self.estado.abrir_captura()
+            self.publicar()
+            self.enviar({'type': 'capture_window', 'capture_id': token, 'seconds': self.espera,
+                         'attempt': intento + 1, 'attempts': self.reintentos + 1})
+            self.vision_ready.wait(self.espera)
+            if self.closed.is_set():
+                return
+            if self.pause_requested.is_set():
+                self.pausar('peticion_jugador')
+                return
+            with self.lock:
+                resultado = self.estado.registrar(*self.vision) if self.vision else None
+                if resultado is None and intento < self.reintentos:
+                    self.estado.preparar_reintento()
+            if resultado is not None:
+                break
+            if intento < self.reintentos:
+                self.publicar()
         if resultado is None:
             self.pausar('sin_jugada_valida')
             return
@@ -248,13 +267,10 @@ class Sesion(object):
         colores = {'empate': 0xFFFF00, 'jugador': 0xFF0000, 'neo': 0x00FF00}
         self.robot.ojos(colores[resultado['ganador']])
         frases = {'empate': 'Empatamos.', 'jugador': 'Ganaste esta ronda.', 'neo': 'Gané esta ronda.'}
-        self.decir('Tú sacaste {} y yo {}. {}'.format(resultado['jugador'], resultado['neo'],
-                                                     frases[resultado['ganador']]))
-        self.decir(self.estado.frase_marcador())
-        if self.estado.fase == 'terminada':
-            self.decir(self.estado.frase_final())
-        else:
-            self.decir('Di siguiente cuando quieras continuar.')
+        cierre = (self.estado.frase_final() if self.estado.fase == 'terminada'
+                  else 'Di siguiente cuando quieras continuar.')
+        self.decir('Tú sacaste {} y yo {}. {} {} {}'.format(resultado['jugador'], resultado['neo'],
+                   frases[resultado['ganador']], self.estado.frase_marcador(), cierre))
         self.enviar({'type': 'event', 'event': 'comentario_ronda', 'state': self.estado.snapshot()})
 
     def ejecutar(self, accion, texto=''):
@@ -306,6 +322,9 @@ class Sesion(object):
             self.enviar({'type': 'agent_result', 'request_id': dato.get('request_id'),
                          'accepted': ok, 'spoken': hablado, 'action': accion})
         else:
+            if dato.get('action') != 'pausar' and dato.get('_version_recibida', self.estado.version) != self.estado.version:
+                self.enviar({'type': 'error', 'message': 'La ronda cambio; repite el comando cuando termine el aviso.'})
+                return
             self.ejecutar(dato.get('action'))
 
     def run(self):
@@ -340,7 +359,8 @@ def main():
     parser.add_argument('--robot-port', type=int, default=54743)
     parser.add_argument('--puerto', type=int, default=5005)
     parser.add_argument('--rondas', type=int, choices=(3, 5), default=3)
-    parser.add_argument('--espera', type=float, default=3.0)
+    parser.add_argument('--espera', type=float, default=6.0)
+    parser.add_argument('--reintentos', type=int, choices=(0, 1, 2), default=1)
     parser.add_argument('--simular', action='store_true', help='Sin NAOqi: solo imprime lo que diria Neo.')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos del script original.')
     parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
@@ -365,7 +385,7 @@ def main():
         while True:
             conn, _ = servidor.accept()
             try:
-                Sesion(conn, robot, args.rondas, args.espera).run()
+                Sesion(conn, robot, args.rondas, args.espera, args.reintentos).run()
             finally:
                 conn.close()
     except KeyboardInterrupt:

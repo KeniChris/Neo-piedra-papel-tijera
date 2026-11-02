@@ -22,6 +22,7 @@ class ConexionNeo:
         self.closed = threading.Event()
         self.estado = None
         self.hello = {}
+        self.captura = {}
         self.hablando = False
         self.voice_generation = 0
         self.mute_until = 0.0
@@ -50,6 +51,14 @@ class ConexionNeo:
     def snapshot(self):
         with self.lock:
             return copy.deepcopy(self.estado)
+
+    def ventana_captura(self):
+        with self.lock:
+            dato = dict(self.captura)
+            if not dato or not self.estado or dato.get('capture_id') != self.estado.get('capture_id'):
+                return {}
+            dato['restante'] = max(0.0, dato['fin'] - time.monotonic())
+            return dato
 
     def voz_token(self):
         with self.lock:
@@ -85,6 +94,10 @@ class ConexionNeo:
                     with self.lock:
                         self.estado = dato['state']
                     self.ready.set()
+                elif tipo == 'capture_window':
+                    with self.lock:
+                        if self.estado and dato.get('capture_id') == self.estado.get('capture_id'):
+                            self.captura = dict(dato, fin=time.monotonic() + float(dato['seconds']))
                 elif tipo == 'speaking':
                     with self.lock:
                         self.hablando = bool(dato.get('active'))

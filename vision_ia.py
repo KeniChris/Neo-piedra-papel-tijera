@@ -6,7 +6,7 @@ import threading
 import time
 
 from cliente_neo import ConexionNeo, Conversador, procesar_texto
-from gestos import clasificar
+from gestos import GestoEstable, clasificar
 from ia_neo import CerebroNeo, ErrorIA
 from sensores_cliente import ClienteSensores, CamaraConRespaldo, fuente_audio_nao
 
@@ -47,6 +47,54 @@ def diagnosticar(cv2, mp, manos_clase):
         return 1
     print('VISION_OK: Hands inicializado y fotograma vacio procesado. No se abrio la camara ni se consulto la IA.')
     return 0
+
+
+def probar_solo_camara(cv2, mp, manos_clase, indice='0'):
+    """Vista previa del detector con webcam PC; no crea IA ni conexion NAOqi."""
+    fuente = int(indice) if str(indice).isdigit() else indice
+    cap = None
+    try:
+        cap = cv2.VideoCapture(fuente)
+        if not cap.isOpened():
+            print('No se pudo abrir la webcam para la prueba de gestos.')
+            return 1
+        filtro = GestoEstable()
+        with manos_clase(max_num_hands=1, min_detection_confidence=.7, min_tracking_confidence=.7) as detector:
+            print('SOLO CAMARA PC: muestra puno, palma y tijera. Esc termina; no hay partida ni voz.')
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    print('La webcam dejo de entregar imagenes.')
+                    return 1
+                resultado = detector.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                hay_mano = bool(resultado.multi_hand_landmarks)
+                gesto = clasificar(resultado.multi_hand_landmarks[0].landmark) if hay_mano else None
+                estable = filtro.observar(gesto, 'vista_previa')
+                if hay_mano:
+                    mp.solutions.drawing_utils.draw_landmarks(frame, resultado.multi_hand_landmarks[0],
+                                                             mp.solutions.hands.HAND_CONNECTIONS)
+                if frame.shape[1] < 640:
+                    frame = cv2.resize(frame, (640, round(frame.shape[0] * 640 / frame.shape[1])))
+                lineas = ['PRUEBA DE GESTOS - sin partida ni voz',
+                          'Mano: {} | gesto: {}'.format('visible' if hay_mano else 'no detectada', gesto or '--'),
+                          'Confirmado: {} | estabilidad {:.0f}%'.format(estable or '--', filtro.progreso() * 100),
+                          'Puno = piedra | palma = papel | dos dedos = tijera',
+                          'Manten la mano completa en el encuadre | ESC salir']
+                for i, linea in enumerate(lineas):
+                    cv2.putText(frame, linea, (10, 30 + 27 * i), cv2.FONT_HERSHEY_SIMPLEX,
+                                .55, (0, 255, 0), 1)
+                cv2.imshow('Neo - prueba de gestos', frame)
+                if cv2.waitKey(1) & 0xFF == 27:
+                    return 0
+    except KeyboardInterrupt:
+        return 130
+    except Exception as error:
+        print('Fallo de la prueba de camara:', type(error).__name__, str(error))
+        return 1
+    finally:
+        if cap is not None:
+            cap.release()
+        cv2.destroyAllWindows()
 
 
 def diagnosticar_fuentes_pc(camara=False, microfono=False, indice='0'):
@@ -159,10 +207,11 @@ def main():
     parser.add_argument('--sin-ia', action='store_true', help='Solo prueba local de vision y reglas; NO usa un modelo.')
     parser.add_argument('--sin-comentarios', action='store_true', help='La IA responde solo cuando el jugador le habla.')
     parser.add_argument('--diagnostico', action='store_true', help='Comprueba librerias y detector sin camara, Codex ni NAOqi.')
+    parser.add_argument('--solo-camara', action='store_true', help='Prueba gestos con webcam PC sin NAOqi, Codex ni voz.')
     args = parser.parse_args()
     print('Python de vision:', sys.executable)
-    print('Camara: {} | Microfono: {}'.format(args.fuente_camara.upper(),
-          args.fuente_microfono.upper() if args.microfono else 'desactivado'))
+    print('Camara: {} | Microfono: {}'.format('PC' if args.solo_camara else args.fuente_camara.upper(),
+          args.fuente_microfono.upper() if args.microfono and not args.solo_camara else 'desactivado'))
     try:
         cv2, mp, manos_clase = cargar_dependencias()
     except ErrorVision as error:
@@ -171,6 +220,8 @@ def main():
         return 1
     if args.diagnostico:
         return diagnosticar(cv2, mp, manos_clase)
+    if args.solo_camara:
+        return probar_solo_camara(cv2, mp, manos_clase, args.camara)
     cerebro = None
     if not args.sin_ia:
         try:
@@ -218,8 +269,7 @@ def main():
             return 1
         print('Teclas: S empezar | N siguiente | P pausa | C continuar | R reglas | M marcador | T texto | Esc salir')
         ultimo_token = None
-        ultima_sena = None
-        estables = 0
+        filtro = GestoEstable()
         ultimo_envio = 0.0
         esperar_pausa = False
         while not conexion.closed.is_set():
@@ -233,7 +283,8 @@ def main():
                 cap.cambio = False
                 conexion.comando('pausar')
                 esperar_pausa = True
-                ultima_sena, estables, ultimo_token, ultimo_envio = None, 0, None, 0
+                filtro.reiniciar()
+                ultimo_token, ultimo_envio = None, 0
                 token = None
                 print('Fuente de imagen cambiada a PC. Pulsa C para reintentar la ronda tras la pausa.')
             resultado = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -247,21 +298,25 @@ def main():
             if token != actual_token or esperar_pausa:
                 token = None
             if token != ultimo_token:
-                ultima_sena, estables = None, 0
                 ultimo_token = token
                 ultimo_envio = 0
+            ahora = time.monotonic()
+            estable = filtro.observar(sena, token, ahora)
             if token:
-                estables = estables + 1 if sena == ultima_sena else 1
-                ultima_sena = sena
-                ahora = time.monotonic()
-                estable = sena if sena and estables >= 6 else None
                 if ahora - ultimo_envio >= (0.1 if estable else 0.3):
                     conexion.enviar({'type': 'vision', 'capture_id': token,
                                      'gesture': estable, 'hand_present': hay_mano})
                     ultimo_envio = ahora
-            else:
-                ultima_sena, estables = None, 0
             fase = estado['fase'] if estado else 'sin estado'
+            ventana = conexion.ventana_captura()
+            if resultado.multi_hand_landmarks:
+                mp.solutions.drawing_utils.draw_landmarks(frame, resultado.multi_hand_landmarks[0],
+                                                         mp.solutions.hands.HAND_CONNECTIONS)
+            ayuda = ('Muestra la mano completa' if not hay_mano else
+                     ('Manten el gesto: ' + sena if sena else 'Mano visible: acomoda los dedos'))
+            if not token:
+                ayuda = ('Vista previa: {}'.format(sena or 'sin gesto claro') if hay_mano
+                         else 'Vista previa: muestra la mano completa')
             puntos = estado['marcador'] if estado else {'neo': 0, 'jugador': 0}
             if conversador is None:
                 estado_ia = 'SIN IA - prueba de reglas'
@@ -277,10 +332,14 @@ def main():
                 'Audio entrada: {}'.format(estado_microfono['estado']),
                 'Voz: {} | salida {}'.format(conexion.hello.get('voz', 'nao_tts'), conexion.hello.get('salida_voz', 'nao')),
                 'Gesto: {} | {}'.format(sena or 'invalido / sin mano', fase),
+                ayuda,
                 'Neo {} - Jugador {}'.format(puntos['neo'], puntos['jugador']),
                 estado_ia,
                 'S inicio | N siguiente | P pausa | T conversar | ESC salir'
             ]
+            if ventana:
+                lineas.insert(6, 'Captura {:.1f}s | intento {}/{} | estable {:.0f}%'.format(
+                    ventana['restante'], ventana['attempt'], ventana['attempts'], filtro.progreso() * 100))
             if conexion.hello.get('simulado'):
                 lineas.append('ROBOT SIMULADO - sin voz ni movimiento fisicos')
             elif conexion.hello.get('entorno') == 'virtual':
