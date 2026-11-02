@@ -19,7 +19,7 @@
   "puerto_sensores": 5006,
   "callback_ip": null,
   "callback_port": 5007,
-  "saludo_ia": true,
+  "saludo_ia": false,
   "respaldo_choregraphe": true,
   "puerto_virtual": null,
   "puertos_fisicos_alternativos": [9561]

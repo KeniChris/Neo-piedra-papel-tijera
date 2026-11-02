@@ -1,4 +1,29 @@
-# Contexto para continuar las pruebas de Neo
+# Contexto para continuar las pruebas de Naoqi
+
+El usuario pidio renombrar el personaje a Naoqi y hacerlo competitivo y
+gracioso. Se conservan nombres de archivos, claves de estado y cabeceras
+NEO por compatibilidad. personalidad_naoqi.py centraliza los textos; el
+perfil usa un solo saludo fijo (saludo_ia false), sin anunciar la tecnologia
+de voz. Las preguntas sobre su origen se responden honestamente.
+El microfono acepta Nao/Naoqi/Naoki/Naoji al inicio de comandos o preguntas,
+ademas de Naoqui y variantes separadas. Conserva limites de palabra para no
+activar peticiones al oir nombres como Naomi ni partir Nao ki como solo Nao.
+agente_juego.py usa SystemRandom y mezcla 50% exploracion con frecuencias
+suavizadas o transiciones de rondas ya confirmadas. No hay orden fijo ni
+modelo preentrenado; elige antes de captar la mano actual y reinicia por
+partida. No prometas precision con 3/5 jugadas ni acceso al reloj.
+El cierre depende del marcador final, una vez por partida. Si gana Naoqi,
+se solicita un estribillo original cantado y se ejecuta una celebracion breve;
+si pierde, ofrece la misma pose de papel con mano abierta durante diez
+segundos y retorna a StandInit en finally. El usuario autorizo esos gestos.
+Reutiliza angulos y velocidades existentes; no aprietes la mano de la persona
+ni detectes un apreton inexistente. Pausa/desconexion interrumpen la espera.
+La fase cierre bloquea una revancha hasta terminar. Los motores siguen
+desactivados por defecto. La entonacion musical OpenAI y los nuevos gestos
+fisicos siguen pendientes de escucha/ensayo; los tests usan PCM y SDK falsos.
+Voz cantada usa un estilo validado y cache separada. Las dos frases finales
+se preparan al arrancar con API; si fallan, se marca esa frase para no repetir
+automaticamente el cargo. La partida sigue disponible y mantiene el cierre.
 
 Lee `EXAMEN_NAO_V6.md`, `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de cambiar el flujo.
 Lee tambien `VOZ_OPENAI.md` para cambiar la salida de voz. El usuario autorizo
@@ -14,8 +39,16 @@ voz de pago al cambiar de puerto. El coste se registra como metadatos locales.
 El usuario confirmo una sesion API real, escucho varias voces en su laptop y
 eligio Verse. Aqui las pruebas usan API/SDK simulados y PCM sintetico. La voz
 del NAO fisico sigue sin validar. Distingue esos resultados al informar.
+Un ErrorPuenteVoz durante una frase pausa solo si la fase es cuenta_atras o
+capturando. Si la ronda ya se registro o termino, conserva fase, puntos y
+resultado; informa el fallo y deja disponibles los comandos locales. No
+confirma como hablada una respuesta de IA cuyo audio fallo. Los errores de
+movimiento o salida PCM conservan la pausa del puente. No se reintenta audio
+de pago automaticamente. Continuemos/sigamos son comandos exactos locales;
+no requieren Naoqi ni una consulta al modelo. Al cancelar IA, descarta tambien
+el error tardio de esa consulta para que no reemplace el estado actual.
 El perfil da 6 s de captura y un reintento automatico; conserva puntos y eleccion
-de Neo, cierra el token anterior antes del aviso y abre otro despues de Ya.
+de Naoqi, cierra el token anterior antes del aviso y abre otro despues de Ya.
 GestoEstable exige 0.30 s y tres muestras nuevas, reiniciadas por token,
 perdida de mano o hueco largo. La guarda de pinza se aplica despues de comprobar
 el puno. No rebajes la deteccion de MediaPipe sin evaluar imagenes reales.
@@ -43,6 +76,9 @@ se pide al ejecutar; no se copia la IP privada ni las credenciales del ZIP.
 `comprobar_naoqi.py`, `robot_server_ia.py`, `sensores_nao.py`, `naoqi_compat.py` y `estado_juego.py` deben conservar
 compatibilidad con Python 2.7. El intérprete del SDK original era
 `C:\Python27\python.exe`. Copia IP y puerto del destino real; no los adivines.
+Los formatos de struct deben ser bytes: b'P' para calcsize y b'<%dh' % muestras
+para PCM. Con unicode_literals los formatos sin b fallan en el SDK Python 2;
+tests/test_naoqi_compat.py reproduce esa restriccion con un doble estricto.
 El puerto virtual cambio de 62213 a 61778. El usuario ya obtuvo PROXY_OK y
 NAOQI_OK en 127.0.0.1:61778 con el SDK real de Python 2.7. Se corrigio el paso
 de Unicode al SDK clasico con cadena_naoqi. No pases Unicode directamente
@@ -52,7 +88,7 @@ en su Python 3.11; preparar_vision.py crea .venv_neo con versiones fijadas.
 Las políticas se recargan por consulta. Las reglas y el marcador pertenecen
 a Python. No introduzcas puntos, articulaciones o comandos de sistema en la
 interfaz del modelo. Los clientes ejecutan solo acciones validadas para la
-fase y versión actuales. Neo elige antes de la captura; no predice la jugada.
+fase y versión actuales. Naoqi elige antes de la captura; no predice la jugada.
 
 La visión recibida utiliza la webcam de la laptop y MediaPipe solutions.hands.
 El lanzador anterior mantiene fuentes PC por defecto. iniciar_examen.py usa

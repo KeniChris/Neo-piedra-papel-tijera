@@ -52,7 +52,7 @@ class PruebasPoliticas(unittest.TestCase):
             with patch.dict(os.environ, {'NEO_POLITICAS': ''}):
                 b = CerebroNeo(transporte=lambda _: respuesta_falsa())
             self.assertEqual(b.politicas_path, RUTA_POLITICAS)
-            self.assertIn('Neo: personalidad', b.payload(EstadoJuego().snapshot(), 'hola')['input'][0]['content'])
+            self.assertIn('Naoqi: personalidad', b.payload(EstadoJuego().snapshot(), 'hola')['input'][0]['content'])
         finally:
             os.chdir(anterior)
 

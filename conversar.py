@@ -10,7 +10,7 @@ from ia_neo import CerebroNeo, ErrorIA
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--robot', action='store_true', help='Envia las respuestas al puente de Neo.')
+    parser.add_argument('--robot', action='store_true', help='Envia las respuestas al puente de Naoqi.')
     parser.add_argument('--puerto', type=int, default=5005)
     args = parser.parse_args()
     try:
@@ -27,7 +27,7 @@ def main():
             conexion = ConexionNeo(port=args.puerto)
             conexion.esperar()
             conversador = Conversador(conexion, cerebro, comentarios=False)
-            print('Escribe mensajes. Se usa la voz de Neo; no hay camara en esta prueba.')
+            print('Escribe mensajes. Se usa la voz de Naoqi; no hay camara en esta prueba.')
         else:
             print('{} real en consola. No hay robot, camara ni jugadas observadas.'.format(cerebro.provider))
         print('Escribe salir para terminar.')
@@ -43,7 +43,7 @@ def main():
             else:
                 try:
                     respuesta = cerebro.responder(EstadoJuego().snapshot(), texto)
-                    print('Neo:', respuesta['texto'])
+                    print('Naoqi:', respuesta['texto'])
                     print('Accion NO ejecutada:', respuesta['accion'], '|', respuesta['latencia_ms'], 'ms')
                     cerebro.confirmar_hablado(texto, respuesta['texto'])
                 except ErrorIA as error:
