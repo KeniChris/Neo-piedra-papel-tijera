@@ -36,8 +36,33 @@ python preparar_vision.py --examen
 .\.venv_neo\Scripts\python.exe probar_voz.py --solo-config
 ```
 
+El preparador reutiliza un entorno existente que tenga `pyvenv.cfg` y su
+interprete. Tambien puede ejecutarse con `(.venv_neo)` activo en PowerShell;
+actualiza dependencias sin intentar sobrescribir el Python que estas usando.
+Si una version anterior muestra `PermissionError` al preparar ese mismo entorno,
+puedes instalar directamente desde la terminal donde ya esta activo:
+
+```powershell
+python -m pip install --only-binary=:all: -r requirements_examen.txt
+python -m pip check
+python probar_voz.py --solo-config
+```
+
 Esos pasos instalan/comprueban bibliotecas; no hacen consultas de pago. Cuando
-tengas saldo y clave, escucha una frase:
+tengas la clave, puedes comprobar primero la conexion y la configuracion:
+
+```powershell
+.\.venv_neo\Scripts\python.exe probar_voz.py --diagnostico-api
+```
+
+Este modo pide la clave oculta, conecta a Realtime, envia `session.update` y
+espera la confirmacion. No envia texto para sintetizar, no crea una Response,
+no abre dispositivos ni genera audio. OpenAI documenta el cobro de Realtime
+por las Responses; la conexion por si sola no tiene ese cargo. Un resultado
+`OPENAI_SESION_OK` confirma que se acepto la configuracion, pero no valida el
+saldo para generar una respuesta, la voz real ni la audibilidad.
+
+Para escuchar una frase con saldo de API:
 
 ```powershell
 .\.venv_neo\Scripts\python.exe probar_voz.py
@@ -53,6 +78,14 @@ comprueba personalmente que la escuchaste. Puedes comparar otra voz:
 ```powershell
 .\.venv_neo\Scripts\python.exe probar_voz.py --voz coral
 ```
+
+Si aparece `OpenAI rechazo ...`, conserva la linea `Detalle seguro`. Ahora
+incluye la etapa, el tipo, el codigo, el parametro y el mensaje del proveedor
+cuando estan disponibles. El programa oculta la clave y los valores Bearer;
+no imprime cabeceras ni la excepcion de red completa. Un rechazo no demuestra
+por si solo que la clave se haya copiado mal: hace falta leer el motivo real.
+Puedes ejecutar `--diagnostico-api` para comprobar la configuracion sin volver
+a pedir audio. No se cambia de modelo ni se reintenta automaticamente.
 
 ## Usar la misma voz en la partida
 
