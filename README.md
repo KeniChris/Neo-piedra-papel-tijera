@@ -8,7 +8,10 @@ robot virtual de Choregraphe o al NAO físico configurado por el equipo.
 La visión conserva el clasificador recibido: MediaPipe Hands localiza la mano
 y reglas geométricas clasifican el gesto visible como piedra, papel o tijera.
 **El modelo de anticipación propuesto todavía no está implementado ni entrenado.**
-Neo elige al azar antes de observar la jugada del participante.
+Neo elige al azar antes de observar la jugada del participante. Tras confirmar
+el gesto humano, revela esa eleccion guardada diciendo su nombre mientras
+ejecuta la pose, si se activo `--movimientos`. La camara arbitra y Codex
+conversa; ninguno cambia la eleccion para responder con una jugada ganadora.
 
 ## Voz OpenAI opcional
 
@@ -32,7 +35,8 @@ Se corrige un rechazo del puno con el pulgar junto al indice. La confirmacion
 exige 0.30 s y al menos tres muestras de la misma captura, en vez de seis
 frames a cualquier velocidad. La vista dibuja la mano e indica el gesto,
 el tiempo y el intento para comprobar el puno antes de pulsar S. La geometria
-se comprobo con landmarks sinteticos; falta evaluarla con la camara del usuario.
+se comprobo con landmarks sinteticos. El usuario confirmo que la prueba de
+solo camara funciona; no se ha medido precision con un conjunto de videos.
 
 Prueba primero con `.\.venv_neo\Scripts\python.exe vision_ia.py --solo-camara`.
 Ese modo abre la webcam PC sin Codex, NAOqi, microfono ni voz de pago.
@@ -114,7 +118,7 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 - El usuario obtuvo una respuesta real de Codex con `gpt-6-luna` en su laptop.
 - El usuario confirmó `PROXY_OK` y `NAOQI_OK` en su Choregraphe y ejecutó
   cuenta atrás y pausa automática.
-- Pasaron 103 pruebas automatizadas, con CLI/API/SDK simulados y transporte
+- Pasaron 108 pruebas automatizadas, con CLI/API/SDK simulados y transporte
   local real; SpeechRecognition se comprobó con PCM sintético, sin hardware.
   Las de voz comprueban PCM, cache, errores, cierre y orden de captura; no
   consultan OpenAI ni prueban la pronunciacion o audibilidad del robot.

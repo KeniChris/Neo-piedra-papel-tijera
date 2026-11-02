@@ -7,6 +7,7 @@ import random
 import re
 
 JUGADAS = ('piedra', 'papel', 'tijera')
+ANUNCIOS_JUGADA = {'piedra': 'Piedra.', 'papel': 'Papel.', 'tijera': 'Tijera.'}
 GANA = set([('piedra', 'tijera'), ('papel', 'piedra'), ('tijera', 'papel')])
 ACCIONES = ('hablar', 'iniciar', 'pausar', 'continuar', 'reglas', 'marcador')
 AVISO_REINTENTO = 'Manten tu gesto frente a la camara. Reintentamos esta ronda.'

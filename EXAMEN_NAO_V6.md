@@ -156,12 +156,33 @@ Con la ventana de cámara activa también puedes usar:
 | T | Escribir en la terminal para conversar |
 | Esc | Cerrar el cliente y sus puentes |
 
-El perfil inicial anuncia la jugada de Neo con voz. Para incluir las poses
-del programa original, cierra la ejecución anterior y usa:
+Neo elige al azar antes de capturar la mano humana. Cuando se confirma la
+jugada del participante, revela esa eleccion guardada: inicia la pose y el
+nombre corto («Piedra», «Papel» o «Tijera») en paralelo y despues dice el
+resultado y marcador. No predice la intencion ni escoge una respuesta ganadora
+despues de observar. La eleccion se conserva en los reintentos.
+
+Para incluir las poses del programa original y Verse, cierra la ejecucion
+anterior y usa:
 
 ```powershell
-.\.venv_neo\Scripts\python.exe iniciar_examen.py --movimientos
+.\.venv_neo\Scripts\python.exe iniciar_examen.py --voz openai --movimientos
 ```
+
+Para ensayarlo primero en el virtual, anade `--virtual`; se pide el puerto
+actual de Choregraphe. Sin `--movimientos` se anuncia la eleccion, pero no
+se envian ordenes de motor.
+
+| Jugada | Representacion del programa |
+| --- | --- |
+| Piedra | Mano derecha cerrada y brazo hacia delante |
+| Papel | Mano derecha abierta y brazo hacia delante |
+| Tijera | Mano abierta y otra posicion del brazo, mas elevada |
+
+La mano NAO tiene apertura/cierre conjunto mediante RHand, sin mandos para
+cada dedo. Tijera es una representacion simbolica; no se forma una V humana
+con dos dedos independientes. Se conservan los angulos y velocidades del
+programa recibido. Consulta [articulaciones NAO V6](https://doc.nao6.maxtronics.com/family/nao_technical/joints_naov6.html).
 
 Las poses también requieren validación física. La tecla P pausa la partida;
 no es una parada de emergencia del robot.
@@ -220,7 +241,7 @@ el estado del juego. No predice una jugada futura, no detecta presión ni usa
 el reloj. Codex recibe texto y estado; la transcripción de voz se envía a
 Google. No se envían las imágenes de la cámara al modelo conversacional.
 
-Pasaron **103 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
+Pasaron **108 pruebas automatizadas** sin NAO físico: protocolo, reglas, CLI
 simulada, transporte local de imágenes y PCM, descarte de audio antiguo,
 suscripciones y cierre de procesos. Una prueba usa SpeechRecognition real
 con PCM sintético; se omite si no está instalado. También se ejecutó MediaPipe

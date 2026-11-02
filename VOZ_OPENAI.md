@@ -114,12 +114,19 @@ en el robot. Si pasa, inicia la partida:
 .\.venv_neo\Scripts\python.exe iniciar_examen.py --voz openai
 ```
 
-El arranque genera la frase de prueba y prepara dos frases de cuenta atras
-y el aviso de reintento cuando este activado:
+El arranque genera la frase de prueba y prepara dos frases de cuenta atras,
+los tres nombres cortos de jugada y el aviso de reintento cuando este activado:
 son consultas de pago. Las frases repetidas se reutilizan en memoria durante
 esa ejecucion; no se vuelven a cobrar si salen de esa cache local. Al reiniciar
 el programa se pierde la cache. Las respuestas nuevas de Luna necesitan audio
 nuevo. No se promete respuesta instantanea ni una latencia ya medida.
+
+Los nombres «Piedra», «Papel» y «Tijera» se preparan por separado para
+reutilizarlos al revelar la eleccion de Neo. Esa preparacion agrega tres
+generaciones breves al arranque; durante las rondas se usa la cache local.
+La voz del nombre y la pose se inician en paralelo despues de confirmar la
+mano humana, con la jugada que Neo habia elegido antes de capturarla.
+`--movimientos` activa las poses; sin esa opcion se anuncia solo la voz.
 
 `--voz-openai coral` cambia la voz en el lanzador. Tambien puedes seleccionar
 `"voz": "openai"` y `"voz_openai": "verse"` en `config/neo_examen.json` para
