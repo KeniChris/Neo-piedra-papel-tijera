@@ -187,7 +187,7 @@ class PruebasPerfilExamen(unittest.TestCase):
         args = argumentos(perfil)
         self.assertIn('--camara-nao', args)
         self.assertIn('--microfono-nao', args)
-        self.assertIn('--saludo-ia', args)
+        self.assertNotIn('--saludo-ia', args)  # Un solo saludo del controlador.
         self.assertNotIn('--movimientos', args)
 
     def test_arranque_y_diagnostico_no_cambian_las_fuentes(self):

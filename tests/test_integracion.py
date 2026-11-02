@@ -371,6 +371,35 @@ class PruebasSocket(unittest.TestCase):
         self.assertEqual(estado['rondas_completadas'], 1)
         self.assertEqual(estado['marcador'], {'neo': 0, 'jugador': 1})
 
+    def test_cierre_termina_antes_de_admitir_otra_partida(self):
+        entro, liberar = threading.Event(), threading.Event()
+        def ofrecer(cancelar):
+            entro.set()
+            liberar.wait(2)
+        self.sesion.robot.ofrecer_mano = ofrecer
+        respuestas = []
+        self.c.on_agent_result = respuestas.append
+        try:
+            self.c.comando('iniciar')
+            for numero in range(1, 4):
+                estado = self.fase('capturando')
+                self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+                if numero < 3:
+                    self.fase('entre_rondas')
+                    self.c.comando('continuar')
+            self.assertTrue(entro.wait(1))
+            cierre = self.fase('cierre')
+            self.assertEqual(cierre['rondas_completadas'], 3)
+            self.c.enviar({'type': 'agent', 'request_id': 99, 'context_version': cierre['version'],
+                           'reply': {'accion': 'iniciar', 'texto': 'Otra partida.'}})
+            liberar.set()
+            self.fase('terminada')
+            esperar(lambda: bool(respuestas))
+            self.assertFalse(respuestas[0]['accepted'])
+            self.assertEqual(self.c.snapshot()['partida'], 1)
+        finally:
+            liberar.set()
+
     def test_revela_la_eleccion_previa_aunque_pierda_contra_el_humano(self):
         from unittest.mock import Mock
         self.sesion.robot.decir = Mock()

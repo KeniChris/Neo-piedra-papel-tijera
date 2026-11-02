@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 import sys
 import wave
+from personalidad_naoqi import JINGLE_VICTORIA
 
 from voz_openai import (ErrorVoz, FRASE_PRUEBA, LectorOpenAI, MODELO, ReproductorPC,
                         TASA, VOCES, VOZ_PREDETERMINADA, comprobar_biblioteca, obtener_clave)
@@ -19,7 +20,8 @@ def main(argv=None):
     modo.add_argument('--diagnostico-api', action='store_true',
                       help='Conecta y valida la configuracion Realtime sin crear una respuesta ni audio.')
     parser.add_argument('--voz', choices=VOCES, default=VOZ_PREDETERMINADA)
-    parser.add_argument('--texto', default=FRASE_PRUEBA)
+    parser.add_argument('--texto')
+    parser.add_argument('--cantar', action='store_true', help='Ensaya la entonacion musical del estribillo original.')
     args = parser.parse_args(argv)
     lector = None
     try:
@@ -41,7 +43,8 @@ def main(argv=None):
         clave = obtener_clave()
         print('Modelo {} | voz {} | una consulta de voz con saldo API.'.format(MODELO, args.voz), flush=True)
         lector = LectorOpenAI(clave, args.voz, registro=CARPETA / 'diagnosticos_locales' / 'voz_openai_uso.jsonl')
-        pcm = lector.sintetizar(args.texto)
+        texto = args.texto or (JINGLE_VICTORIA if args.cantar else FRASE_PRUEBA)
+        pcm = lector.sintetizar(texto, estilo='cantado') if args.cantar else lector.sintetizar(texto)
         carpeta = CARPETA / 'grabaciones'
         carpeta.mkdir(exist_ok=True)
         ruta = carpeta / 'neo_voz_openai.wav'

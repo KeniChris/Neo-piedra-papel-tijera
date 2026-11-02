@@ -3,8 +3,10 @@
 from __future__ import unicode_literals
 
 import copy
-import random
 import re
+
+from agente_juego import AgenteJugada
+from personalidad_naoqi import NOMBRE
 
 JUGADAS = ('piedra', 'papel', 'tijera')
 ANUNCIOS_JUGADA = {'piedra': 'Piedra.', 'papel': 'Papel.', 'tijera': 'Tijera.'}
@@ -30,7 +32,8 @@ class EstadoJuego(object):
     def __init__(self, rondas=3, elegir=None):
         if rondas not in (3, 5):
             raise ValueError('La partida debe tener 3 o 5 rondas validas.')
-        self.elegir = elegir or random.choice
+        self.agente = AgenteJugada() if elegir is None else None
+        self.elegir = elegir or self.agente.elegir
         self.max_rondas = rondas
         self.fase = 'esperando'
         self.version = 0
@@ -58,6 +61,8 @@ class EstadoJuego(object):
         self.ultima_ronda = None
         self.motivo_pausa = None
         self._jugada_neo = None
+        if self.agente is not None:
+            self.agente.reiniciar()
         self.cambiar_fase('entre_rondas')
         return True
 
@@ -113,6 +118,8 @@ class EstadoJuego(object):
         self.completadas += 1
         self.ultima_ronda = {'numero': self.completadas, 'jugador': humano,
                              'neo': robot, 'ganador': resultado}
+        if self.agente is not None:
+            self.agente.observar(humano)
         self._jugada_neo = None
         self.cambiar_fase('terminada' if self.completadas >= self.max_rondas else 'entre_rondas')
         return copy.deepcopy(self.ultima_ronda)
@@ -138,12 +145,12 @@ class EstadoJuego(object):
                 'motivo_pausa': self.motivo_pausa, 'capture_id': self.capture_id}
 
     def frase_marcador(self):
-        return 'Marcador: Neo {}, jugador {}. Llevamos {} de {} rondas.'.format(
-            self.marcador['neo'], self.marcador['jugador'], self.completadas, self.max_rondas)
+        return 'Marcador: {} {}, jugador {}. Llevamos {} de {} rondas.'.format(
+            NOMBRE, self.marcador['neo'], self.marcador['jugador'], self.completadas, self.max_rondas)
 
     def frase_final(self):
         if self.marcador['neo'] > self.marcador['jugador']:
-            return 'Terminó la partida. Ganó Neo.'
+            return 'Termino la partida. Gano {}.'.format(NOMBRE)
         if self.marcador['jugador'] > self.marcador['neo']:
             return 'Terminó la partida. Ganó el jugador. Felicidades.'
         return 'Terminó la partida. Quedamos empatados.'

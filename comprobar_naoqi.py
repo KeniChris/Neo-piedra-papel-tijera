@@ -8,6 +8,7 @@ import sys
 import traceback
 
 from naoqi_compat import cadena_naoqi
+from personalidad_naoqi import FRASE_PRUEBA
 
 FALLO_DESTINO = 70
 
@@ -46,8 +47,7 @@ def main():
                 # Comprueba el destino virtual, aunque el audio saldra por la laptop.
                 naoqi.ALProxy(cadena_naoqi('ALMemory'), cadena_naoqi(args.robot_ip), int(args.robot_port))
             if args.probar_voz:
-                ClienteVoz(args.puerto_voz, salida=salida).decir(
-                    'Hola, soy Neo. Esta es mi voz generada por inteligencia artificial.')
+                ClienteVoz(args.puerto_voz, salida=salida).decir(FRASE_PRUEBA)
                 print('VOZ_OPENAI_ENVIADA: reproduccion solicitada en {}. Confirma que se oiga.'.format(args.salida_voz))
             else:
                 print('NAOQI_OK: destino disponible para voz OpenAI; no se genero audio ni se probo audibilidad.')
@@ -72,7 +72,7 @@ def main():
             print('AVISO: setLanguage(Spanish) no disponible; se conserva el idioma actual.')
             print('Detalle de idioma:', repr(error_idioma))
         etapa = 'ALTextToSpeech.say'
-        tts.say(cadena_naoqi('Hola, soy Neo. Conexion con NAOqi comprobada.'))
+        tts.say(cadena_naoqi('Hola, soy Naoqi. Listo para el duelo.'))
     except Exception as error:
         print('FALLO NAOqi en {}: {}'.format(etapa, type(error).__name__))
         print('Detalle:', repr(error))

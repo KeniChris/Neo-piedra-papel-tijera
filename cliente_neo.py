@@ -104,7 +104,7 @@ class ConexionNeo:
                         self.voice_generation += 1
                         self.mute_until = time.monotonic() + 0.6
                     if dato.get('active'):
-                        print('Neo:', dato.get('text', ''))
+                        print('Naoqi:', dato.get('text', ''))
                 elif tipo == 'event' and self.on_event:
                     self.on_event(dato)
                 elif tipo == 'agent_result' and self.on_agent_result:
@@ -266,14 +266,12 @@ COMANDOS = {
 
 def procesar_texto(texto, conexion, conversador, requiere_nombre=False):
     limpio = normalizar(texto)
-    if limpio.startswith('neo '):
-        limpio = limpio[4:].strip()
-        dirigido = True
-    elif limpio == 'neo':
-        limpio = 'hola'
-        dirigido = True
-    else:
-        dirigido = False
+    dirigido = False
+    for nombre in ('naoqi', 'naoki', 'naoqui', 'nao ki', 'nao qi', 'nao qui', 'neo'):
+        if limpio == nombre or limpio.startswith(nombre + ' '):
+            limpio = limpio[len(nombre):].strip() or 'hola'
+            dirigido = True
+            break
     if limpio in COMANDOS:
         conexion.comando(COMANDOS[limpio])
         return True

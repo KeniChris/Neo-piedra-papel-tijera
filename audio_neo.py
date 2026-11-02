@@ -91,7 +91,16 @@ class ClienteVoz(object):
         self.http = build_opener(ProxyHandler({}))  # El puente local no pasa por proxies.
 
     def decir(self, texto):
-        cuerpo = json.dumps({'texto': texto}, ensure_ascii=True).encode('utf-8')
+        self._enviar(texto)
+
+    def cantar(self, texto):
+        self._enviar(texto, 'cantado')
+
+    def _enviar(self, texto, estilo='hablado'):
+        datos = {'texto': texto}
+        if estilo != 'hablado':
+            datos['estilo'] = estilo
+        cuerpo = json.dumps(datos, ensure_ascii=True).encode('utf-8')
         solicitud = Request('http://127.0.0.1:{}/hablar'.format(self.puerto), data=cuerpo,
                             headers={'Content-Type': 'application/json', 'X-Neo-Voz': self.token})
         respuesta = None

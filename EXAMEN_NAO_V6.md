@@ -1,4 +1,4 @@
-# Examen con Neo / NAO V6
+# Examen con Naoqi / NAO V6
 
 Perfil preparado para la instalación indicada por el equipo: **NAO V6,
 Choregraphe 2.8.7.4-win64-vs2015 y puerto NAOqi inicial 9559**, con segundo
@@ -130,8 +130,9 @@ Si ese paso termina bien, abre la demostración:
 ```
 
 Introduce de nuevo la IP. Verás la imagen recibida del NAO y el estado de las
-fuentes. Luna genera una presentación breve al arrancar; espera a que Neo
-termine de hablar. Di **«Neo, ¿estás listo para jugar?»** y comprueba en la
+fuentes. Naoqi hace una sola presentacion como rival; el perfil desactiva
+el segundo saludo de Luna con saludo_ia: false. Espera a que Naoqi
+termine de hablar. Di **«Naoqi, ¿estás listo para jugar?»** y comprueba en la
 consola `Oi:` y la respuesta del modelo. Así se evalúa la conversación completa.
 `gpt-6-luna` tardó unos 5,3 segundos en la consulta real anterior del usuario;
 la demora de esta ejecución puede ser distinta.
@@ -140,13 +141,13 @@ Para jugar, di **«empezar»**. Muestra y mantén el gesto dentro de la imagen
 después de «Ya». El detector exige al menos tres muestras iguales durante
 0.30 segundos. Si no confirma el gesto en seis segundos, da un aviso y abre
 un reintento de esa misma ronda con un token nuevo. No repite el balanceo
-del brazo ni cambia la eleccion de Neo. Al agotar los dos intentos, pausa
+del brazo ni cambia la eleccion de Naoqi. Al agotar los dos intentos, pausa
 conservando la partida y los puntos; di continuar para retomarla.
 Di **«siguiente»** entre rondas o **«continuar»** si se pausó por falta de gesto.
-Tambien acepta **«continuemos»** y **«sigamos»** sin decir Neo: son comandos
+Tambien acepta **«continuemos»** y **«sigamos»** sin decir Naoqi: son comandos
 locales y funcionan aunque Codex tarde o falle. No hace falta repetir una
 ronda ya puntuada si falla su anuncio de voz.
-Para preguntas libres, empieza con **«Neo»**. Habla cuando haya terminado su voz.
+Para preguntas libres, empieza con **«Naoqi»**. Habla cuando haya terminado su voz.
 
 Con la ventana de cámara activa también puedes usar:
 
@@ -159,7 +160,9 @@ Con la ventana de cámara activa también puedes usar:
 | T | Escribir en la terminal para conversar |
 | Esc | Cerrar el cliente y sus puentes |
 
-Neo elige al azar antes de capturar la mano humana. Cuando se confirma la
+El agente local de Naoqi combina azar con frecuencias y transiciones de
+jugadas humanas anteriores; reinicia por partida y no usa la mano actual.
+Decide antes de capturar la mano humana. Cuando se confirma la
 jugada del participante, revela esa eleccion guardada: inicia la pose y el
 nombre corto («Piedra», «Papel» o «Tijera») en paralelo y despues dice el
 resultado y marcador. No predice la intencion ni escoge una respuesta ganadora
@@ -175,6 +178,18 @@ anterior y usa:
 Para ensayarlo primero en el virtual, anade `--virtual`; se pide el puerto
 actual de Choregraphe. Sin `--movimientos` se anuncia la eleccion, pero no
 se envian ordenes de motor.
+
+Al terminar la partida, Naoqi celebra su victoria con un estribillo original
+o pide un apreton de manos si gano el jugador. Con --movimientos ofrece la
+mano abierta durante diez segundos y vuelve a StandInit. La fase cierre
+impide iniciar otra partida antes de devolver la postura. P/pausa o cerrar
+interrumpen la espera. No cierra la mano sobre la persona ni detecta contacto.
+El canto se solicita con entonacion musical a OpenAI; hay que escucharlo
+para validar su resultado. Puedes ensayarlo sin robot con:
+
+```powershell
+.\.venv_neo\Scripts\python.exe probar_voz.py --cantar
+```
 
 | Jugada | Representacion del programa |
 | --- | --- |

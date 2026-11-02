@@ -1,4 +1,4 @@
-# Voz OpenAI para Neo
+# Voz OpenAI para Naoqi
 
 Luna sigue generando las respuestas mediante Codex. Esta opcion convierte ese
 texto y los avisos del juego en audio con OpenAI Realtime y la voz `verse`,
@@ -120,12 +120,23 @@ son consultas de pago. Las frases repetidas se reutilizan en memoria durante
 esa ejecucion; no se vuelven a cobrar si salen de esa cache local. Al reiniciar
 el programa se pierde la cache. Las respuestas nuevas de Luna necesitan audio
 nuevo. No se promete respuesta instantanea ni una latencia ya medida.
+Tambien intenta preparar la invitacion al apreton y un estribillo original
+con estilo cantado: dos consultas de voz adicionales por ejecucion. Son
+opcionales: si alguna falla, la partida sigue disponible y esa frase no se
+vuelve a consultar automaticamente durante la sesion. El gesto de cierre
+puede ejecutarse aunque falle su audio. Habla y canto tienen caches separadas.
+
+El lector solicita entonacion musical, no una cancion conocida. Se conserva
+la validacion del texto; la musicalidad no puede comprobarse con un test de
+PCM. Ensaya el resultado con `probar_voz.py --cantar`. El perfil sigue usando
+Verse. Con voz nativa el estribillo se lee. La frase inicial de prueba ya
+habla como rival; no recita «esta es mi voz generada por IA».
 
 Los nombres «Piedra», «Papel» y «Tijera» se preparan por separado para
-reutilizarlos al revelar la eleccion de Neo. Esa preparacion agrega tres
+reutilizarlos al revelar la eleccion de Naoqi. Esa preparacion agrega tres
 generaciones breves al arranque; durante las rondas se usa la cache local.
 La voz del nombre y la pose se inician en paralelo despues de confirmar la
-mano humana, con la jugada que Neo habia elegido antes de capturarla.
+mano humana, con la jugada que Naoqi habia elegido antes de capturarla.
 `--movimientos` activa las poses; sin esa opcion se anuncia solo la voz.
 
 `--voz-openai coral` cambia la voz en el lanzador. Tambien puedes seleccionar
@@ -149,13 +160,13 @@ Si una frase falla durante la partida por conexion o servicio de voz, el
 programa informa el fallo y conserva los puntos. Si ya habia registrado la
 ronda, mantiene entre_rondas o terminada: usa siguiente/continuemos o N para
 seguir. Si falla antes de captar la mano (por ejemplo en Ya), pausa sin
-abrir captura; continuar/C retoma esa ronda con la misma eleccion de Neo.
+abrir captura; continuar/C retoma esa ronda con la misma eleccion de Naoqi.
 No repite automaticamente la frase fallida ni la cambia a voz nativa.
 El siguiente comando del jugador puede solicitar frases nuevas; las que
 siguen en cache se reproducen localmente. Un fallo de movimiento o de la
 salida PCM sigue provocando la pausa del puente.
 
-El texto `Neo:`/`NEO:` se imprime antes de terminar la solicitud de audio.
+El texto `Naoqi:`/`NEO:` se imprime antes de terminar la solicitud de audio.
 Por eso verlo en consola no confirma que se haya escuchado. Una respuesta
 de IA cuyo audio falla no se incorpora como hablada al historial.
 Un timeout de Codex es independiente de la voz; los comandos locales no
@@ -177,7 +188,7 @@ otro uso facturado. No son minutos de tener abierta la aplicacion.
 | 30 minutos | US$0.72 |
 | 60 minutos | US$1.44 |
 
-No es una tarifa fija por partida: cambia cuanto habla Neo, cuantas frases
+No es una tarifa fija por partida: cambia cuanto habla Naoqi, cuantas frases
 se generan, los reintentos manuales y los precios vigentes. Las respuestas
 que lleguen a generarse pueden consumir aunque despues falle la reproduccion
 o la comprobacion de transcripcion. Consulta el consumo real en
@@ -205,7 +216,7 @@ mas un margen de vaciado. No ofrece una confirmacion de audibilidad fisica.
 No usa `ALPythonBridge.eval` ni copia el codigo/credenciales del proyecto del
 companero. Con esta voz, el fisico no necesita `ALTextToSpeech` para hablar.
 
-El microfono permanece bloqueado mientras Neo genera y reproduce la frase.
+El microfono permanece bloqueado mientras Naoqi genera y reproduce la frase.
 La ventana de jugada abre despues de terminar `Ya`. Si la cuenta atras falla,
 la ronda se pausa sin abrir captura ni sumar puntos. El controlador sigue
 siendo la unica autoridad sobre acciones, marcador y movimientos.

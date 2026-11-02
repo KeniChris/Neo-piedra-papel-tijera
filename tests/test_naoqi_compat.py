@@ -126,6 +126,9 @@ class PruebasCompatibilidadNAOqi(unittest.TestCase):
                 robot.sacudir()
                 robot.mostrar('tijera')
                 robot.ojos(0x00FF00)
+                robot.celebrar()
+                robot.ofrecer_mano(SimpleNamespace(is_set=lambda: False,
+                                                  wait=lambda t: self.assertEqual(t, 10.0)))
         self.assertEqual(sdk.frases, ['Tú ganaste; yo perdí.'])
         self.assertEqual(len(sdk.proxies), 4)
         self.assertTrue({'postura', 'brazo', 'mano', 'luces'}.issubset(sdk.metodos))

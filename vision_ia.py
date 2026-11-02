@@ -83,7 +83,7 @@ def probar_solo_camara(cv2, mp, manos_clase, indice='0'):
                 for i, linea in enumerate(lineas):
                     cv2.putText(frame, linea, (10, 30 + 27 * i), cv2.FONT_HERSHEY_SIMPLEX,
                                 .55, (0, 255, 0), 1)
-                cv2.imshow('Neo - prueba de gestos', frame)
+                cv2.imshow('Naoqi - prueba de gestos', frame)
                 if cv2.waitKey(1) & 0xFF == 27:
                     return 0
     except KeyboardInterrupt:
@@ -167,7 +167,7 @@ def escuchar_fuente(conexion, conversador, origen, puerto_sensores, estado_micro
                 break
         if conexion.closed.is_set():
             return
-        print('Microfono {} activo. Para conversar di Neo seguido de tu pregunta.'.format(origen.upper()))
+        print('Microfono {} activo. Para conversar di Naoqi seguido de tu pregunta.'.format(origen.upper()))
         if estado_microfono is not None:
             estado_microfono['estado'] = 'listo'
         while not conexion.closed.is_set():
@@ -253,7 +253,7 @@ def main():
 
         def escribir():
             try:
-                texto = input('Mensaje para Neo > ')
+                texto = input('Mensaje para Naoqi > ')
                 procesar_texto(texto, conexion, conversador)
             except EOFError:
                 pass
@@ -333,7 +333,7 @@ def main():
                 'Voz: {} | salida {}'.format(conexion.hello.get('voz', 'nao_tts'), conexion.hello.get('salida_voz', 'nao')),
                 'Gesto: {} | {}'.format(sena or 'invalido / sin mano', fase),
                 ayuda,
-                'Neo {} - Jugador {}'.format(puntos['neo'], puntos['jugador']),
+                'Naoqi {} - Jugador {}'.format(puntos['neo'], puntos['jugador']),
                 estado_ia,
                 'S inicio | N siguiente | P pausa | T conversar | ESC salir'
             ]
@@ -353,7 +353,7 @@ def main():
             for i, linea in enumerate(lineas):
                 cv2.putText(frame, linea, (10, 30 + i * 27), cv2.FONT_HERSHEY_SIMPLEX,
                             0.55, (0, 255, 0), 1)
-            cv2.imshow('Neo - vision y conversacion', frame)
+            cv2.imshow('Naoqi - vision y conversacion', frame)
             key = cv2.waitKey(1) & 0xFF
             if key == 27:
                 break

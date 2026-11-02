@@ -9,6 +9,7 @@ from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from estado_juego import ANUNCIOS_JUGADA
+from personalidad_naoqi import INVITACION_APRETON, JINGLE_VICTORIA
 from robot_server_ia import Sesion
 from voz_openai import ServicioVoz
 
@@ -61,7 +62,9 @@ class PruebasRevelado(unittest.TestCase):
             servicio.preparar_cuenta(reintentos=0)
             for texto in ANUNCIOS_JUGADA.values():
                 lector.sintetizar.assert_any_call(texto)
-            self.assertEqual(lector.sintetizar.call_count, 5)
+            lector.sintetizar.assert_any_call(INVITACION_APRETON)
+            lector.sintetizar.assert_any_call(JINGLE_VICTORIA, estilo='cantado')
+            self.assertEqual(lector.sintetizar.call_count, 7)
         finally:
             servicio.cerrar()
 

@@ -1,4 +1,4 @@
-# Neo conversacional — NAO V6
+# Naoqi conversacional — NAO V6
 
 Prototipo académico de piedra, papel o tijera con conversación contextual.
 Python controla las rondas y el marcador; Codex genera respuestas cortas con
@@ -8,10 +8,30 @@ robot virtual de Choregraphe o al NAO físico configurado por el equipo.
 La visión conserva el clasificador recibido: MediaPipe Hands localiza la mano
 y reglas geométricas clasifican el gesto visible como piedra, papel o tijera.
 **El modelo de anticipación propuesto todavía no está implementado ni entrenado.**
-Neo elige al azar antes de observar la jugada del participante. Tras confirmar
+Naoqi usa un agente local de estrategia mixta: combina un 50% de exploracion
+aleatoria con frecuencias suavizadas de las jugadas humanas anteriores y,
+cuando hay al menos dos precedentes, sus transiciones. Reinicia el historial
+por partida. Decide antes de observar la jugada actual del participante. Tras confirmar
 el gesto humano, revela esa eleccion guardada diciendo su nombre mientras
 ejecuta la pose, si se activo `--movimientos`. La camara arbitra y Codex
 conversa; ninguno cambia la eleccion para responder con una jugada ganadora.
+
+Naoqi habla en primera persona, con retos y bromas cortas. El saludo del
+perfil no repite una presentacion de Luna ni anuncia que la voz es generada
+por IA; puede explicarlo si se le pregunta. El nombre nuevo tambien activa
+el microfono («Naoqi, estas listo?»), incluidas variantes como Naoki/Naoqui.
+
+Al terminar la partida, el marcador determina el cierre. Si gana Naoqi,
+pide un estribillo original con entonacion musical y hace una celebracion
+breve con `--movimientos`. Si gana el jugador, pide la mano, mantiene la
+pose abierta diez segundos y vuelve a StandInit. Pausa/P o desconectar
+interrumpen la espera y devuelven la postura. No detecta contacto ni cierra
+la mano sobre la persona. El cierre se hace una vez por partida.
+
+Con voz OpenAI se solicita el estilo cantado; su musicalidad requiere
+escucharlo. Con voz nativa se lee el estribillo. Prueba solo ese audio con
+`.\.venv_neo\Scripts\python.exe probar_voz.py --cantar`. Las pruebas aqui usan
+PCM sintetico y motores falsos: falta comprobar los gestos en el NAO fisico.
 
 ## Voz OpenAI opcional
 
@@ -27,7 +47,7 @@ la salida del NAO fisico sigue pendiente.
 ## Captura y reintentos
 
 El perfil usa seis segundos despues de «Ya» y permite un reintento automatico
-de la misma ronda. Conserva la eleccion de Neo y los puntos; al agotar los
+de la misma ronda. Conserva la eleccion de Naoqi y los puntos; al agotar los
 intentos, «continuar» retoma esa ronda. `espera_jugada_seg` y
 `reintentos_captura` se ajustan en `config/neo_examen.json`.
 
@@ -95,7 +115,7 @@ Para probar solo la conversación por texto y la salida NAOqi:
 python probar_choregraphe.py --robot-ip 127.0.0.1 --robot-port 61778
 ```
 
-Escribe `Hola Neo, preséntate sin comenzar la partida` y espera su respuesta.
+Escribe `Hola Naoqi, preséntate sin comenzar la partida` y espera su respuesta.
 En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 
 ## Organización

@@ -1,4 +1,4 @@
-# Neo conversacional
+# Naoqi conversacional
 
 Integra conversacion con una IA real en la partida de piedra, papel o tijera.
 La laptop ejecuta la vision, transcripcion y cliente de IA. El puente NAOqi
@@ -142,7 +142,7 @@ La integracion nueva de camara interna esta en `sensores_nao.py` y
 `sensores_cliente.py`. Se usa mediante el perfil de examen o las opciones
 `--camara-nao` y `--microfono-nao` del lanzador. La webcam sigue disponible.
 
-## Segunda comprobacion: que Neo diga una respuesta de IA
+## Segunda comprobacion: que Naoqi diga una respuesta de IA
 
 Primero comprueba que NAOqi ya funciona con tu instalacion actual.
 La guia PRUEBAS_CHOREGRAPHE.md automatiza los dos procesos descritos aqui.
@@ -173,8 +173,8 @@ No ejecutes a la vez el servidor viejo y el nuevo: ambos usan el puerto 5005.
 python conversar.py --robot
 ```
 
-Escribe `Hola Neo, presentate en una frase sin iniciar la partida`.
-Cuando Codex conteste, Neo debe decir esa respuesta. Esta prueba no abre
+Escribe `Hola Naoqi, presentate en una frase sin iniciar la partida`.
+Cuando Codex conteste, Naoqi debe decir esa respuesta. Esta prueba no abre
 la camara. Cierra `conversar.py` escribiendo `salir` antes de abrir vision.
 Cada conexion nueva al puente inicia una sesion de juego nueva.
 
@@ -219,7 +219,7 @@ otro indice. No hay un modelo nuevo de reconocimiento de manos en este paquete.
 
 ### Uso en la partida
 
-- Espera a que Neo termine de hablar antes de hablarle.
+- Espera a que Naoqi termine de hablar antes de hablarle.
 - Di **empezar** para la primera ronda.
 - Al oir **ya**, muestra y manten tu jugada ante la camara. Conservamos el
   clasificador geometrico del original con la guarda del puno corregida. Un puno visible despues de la senal
@@ -227,18 +227,18 @@ otro indice. No hay un modelo nuevo de reconocimiento de manos en este paquete.
 - La captura utiliza solo imagenes posteriores a la apertura de esa ventana
   y exige al menos tres muestras iguales durante 0.30 segundos. El perfil
   da 6 segundos y un reintento automatico de la misma ronda, sin cambiar la
-  eleccion de Neo ni sumar puntos si no se confirma el gesto.
+  eleccion de Naoqi ni sumar puntos si no se confirma el gesto.
 - Al agotar los intentos configurados sin confirmar gesto, pasa a **pausa**
   y permite continuar la misma ronda.
-- Entre rondas puedes conversar: **Neo, por que perdi?**, **Neo, no estoy de
-  acuerdo con ese punto**, **Neo, vas a perder**, **Neo, explicame las reglas**.
+- Entre rondas puedes conversar: **Naoqi, por que perdi?**, **Naoqi, no estoy de
+  acuerdo con ese punto**, **Naoqi, vas a perder**, **Naoqi, explicame las reglas**.
 - Di **siguiente** cuando quieras la proxima ronda. No avanza mientras quieras hablar.
 - La IA tambien intenta hacer un comentario breve despues de cada ronda.
   Usa `--sin-comentarios` si prefieres que responda solo cuando le hablen.
 - Di **pausa** o **espera** para solicitar una pausa; **continuar** para reanudar.
   Si hay una interpolacion del brazo en curso, primero termina esa operacion.
   No es un mecanismo de parada de emergencia.
-- Las conversaciones por voz requieren **Neo** al inicio, salvo los comandos
+- Las conversaciones por voz requieren **Naoqi** al inicio, salvo los comandos
   cortos exactos. Asi las conversaciones de otras personas no activan el robot
   tan facilmente. No se interpreta "no quiero jugar" como la orden empezar.
 - Tras 3 o 5 rondas validas anuncia el resultado. Una revancha abre otra partida.
@@ -280,9 +280,13 @@ Las frases de reglas y marcador se generan directamente desde ese codigo.
 La IA puede equivocarse en una frase libre: prueba sus comentarios con
 resultados reales antes de la presentacion. No se garantiza que nunca cometa errores.
 
-Neo elige su jugada al azar **antes** de abrir la captura humana y la conserva
+El agente local de Naoqi mezcla azar y frecuencias/transiciones de rondas
+humanas anteriores. Fija su jugada **antes** de abrir la captura humana y la conserva
 si hay que reintentar la ronda. Esta version no predice la intencion del jugador.
 El aporte nuevo es conversacion contextual y coordinacion de acciones.
+Consulta README.md para los dialogos competitivos y el cierre de partida:
+estribillo al ganar o mano abierta durante diez segundos al perder. La pose
+requiere --movimientos y retorna a StandInit; no detecta contacto fisico.
 
 La transcripcion del microfono conserva Google, como en el codigo original.
 El audio va a ese servicio; a OpenAI se envia texto transcrito y el estado.
@@ -398,7 +402,7 @@ ejecucion con Python 2.7/NAOqi y los sensores fisicos sigue pendiente.
 | preparar_vision.py | Crea .venv_neo, instala y comprueba el detector |
 | requirements_vision.txt | Versiones compatibles con el clasificador recibido |
 | probar_ia.py | Primera consulta real a Codex o API; sin paquetes Python adicionales |
-| conversar.py | Conversacion por texto y opcion de salida por Neo |
+| conversar.py | Conversacion por texto y opcion de salida por Naoqi |
 | ia_neo.py | Cliente de IA, prompt y funcion disponible |
 | codex_neo.py | Adaptador Codex CLI con inicio de sesion ChatGPT |
 | USAR_CODEX.ps1 | Selecciona Codex; no pide clave API |

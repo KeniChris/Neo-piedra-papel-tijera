@@ -16,10 +16,12 @@ except ImportError:
 from estado_juego import ANUNCIOS_JUGADA, AVISO_REINTENTO, EstadoJuego, JUGADAS, texto_hablable
 from audio_neo import ErrorPuenteVoz
 from naoqi_compat import cadena_naoqi
+from personalidad_naoqi import (NOMBRE, SALUDO, INVITACION_APRETON, JINGLE_VICTORIA,
+                                TIEMPO_APRETON, comentario_ronda)
 
 REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
           'Muestra tu jugada cuando diga ya. Di siguiente para otra ronda, '
-          'pausa para esperar, o Neo seguido de una pregunta para conversar.')
+          'pausa para esperar, o Naoqi seguido de una pregunta para conversar.')
 
 
 class Robot(object):
@@ -50,13 +52,21 @@ class Robot(object):
                 self.leds = ALProxy(cadena_naoqi('ALLeds'), ip, port)
 
     def decir(self, texto):
-        print('NEO:', texto)
+        print(NOMBRE + ':', texto)
         if self.simular:
             time.sleep(0.01)
         elif self.audio is not None:
             self.audio.decir(texto)
         else:
             self.tts.say(cadena_naoqi(texto))
+
+    def cantar(self, texto):
+        if self.audio is not None and not self.simular:
+            print(NOMBRE + ' canta:', texto)
+            self.audio.cantar(texto)
+        else:
+            # La voz nativa lee el estribillo; no se promete una melodia.
+            self.decir(texto)
 
     def cerrar(self):
         if self.audio is not None:
@@ -102,6 +112,30 @@ class Robot(object):
             self.mano(True)
             self.brazo(-1.2, 0.3, 0.8)
 
+    def celebrar(self):
+        if self.simular or not self.movimientos:
+            return
+        try:
+            self.mano(True)
+            for _ in range(2):
+                self.brazo(-0.5, 1.0, 0.8)
+                self.brazo(0.0, 0.5, 0.8)
+        finally:
+            self.postura_inicial()
+
+    def ofrecer_mano(self, cancelar=None):
+        if self.simular or not self.movimientos:
+            return
+        cancelar = cancelar if cancelar is not None else threading.Event()
+        try:
+            if cancelar.is_set():
+                return
+            # Reutiliza la pose de papel; mantiene la mano abierta.
+            self.mostrar('papel')
+            cancelar.wait(TIEMPO_APRETON)
+        finally:
+            self.postura_inicial()
+
 
 class Sesion(object):
     def __init__(self, conn, robot, rondas=3, espera=6.0, reintentos=1):
@@ -138,13 +172,22 @@ class Sesion(object):
         return snapshot
 
     def decir(self, texto):
+        self._voz(texto)
+
+    def cantar(self, texto):
+        self._voz(texto, cantado=True)
+
+    def _voz(self, texto, cantado=False):
         texto = texto_hablable(texto, 450)
         if not texto or self.closed.is_set():
             return
         with self.speech_lock:
             self.enviar({'type': 'speaking', 'active': True, 'text': texto})
             try:
-                self.robot.decir(texto)
+                if cantado:
+                    self.robot.cantar(texto)
+                else:
+                    self.robot.decir(texto)
             finally:
                 self.enviar({'type': 'speaking', 'active': False})
 
@@ -205,12 +248,15 @@ class Sesion(object):
         """Inicia voz y pose juntas; el argumento viene de la eleccion previa."""
         if jugada not in JUGADAS:
             raise ValueError('Jugada de revelacion no valida')
+        self.voz_y_movimiento(ANUNCIOS_JUGADA[jugada], lambda: self.robot.mostrar(jugada))
+
+    def voz_y_movimiento(self, texto, movimiento, cantado=False):
         if self.closed.is_set():
             return
         errores_voz = []
         def anunciar():
             try:
-                self.decir(ANUNCIOS_JUGADA[jugada])
+                self._voz(texto, cantado)
             except Exception as error:
                 errores_voz.append(error)
         voz = threading.Thread(target=anunciar)
@@ -219,11 +265,21 @@ class Sesion(object):
         try:
             # Mismas poses, angulos y velocidades del programa recibido.
             # Solo envia comandos de motor si se activo --movimientos.
-            self.robot.mostrar(jugada)
+            movimiento()
         finally:
             voz.join()
         if errores_voz:
             raise errores_voz[0]
+
+    def cerrar_partida(self):
+        puntos = self.estado.marcador
+        if puntos['neo'] > puntos['jugador']:
+            self.voz_y_movimiento(JINGLE_VICTORIA, self.robot.celebrar, cantado=True)
+        elif puntos['jugador'] > puntos['neo']:
+            self.voz_y_movimiento(INVITACION_APRETON,
+                                 lambda: self.robot.ofrecer_mano(self.pause_requested))
+        else:
+            self.decir('Empate final. Dejamos el duelo pendiente y mi ego intacto.')
 
     def ronda(self):
         with self.lock:
@@ -287,16 +343,38 @@ class Sesion(object):
         if resultado is None:
             self.pausar('sin_jugada_valida')
             return
+        with self.lock:
+            terminada = self.estado.fase == 'terminada'
+            if terminada:
+                self.estado.cambiar_fase('cierre')
         self.publicar()
-        self.revelar_jugada(resultado['neo'])
-        colores = {'empate': 0xFFFF00, 'jugador': 0xFF0000, 'neo': 0x00FF00}
-        self.robot.ojos(colores[resultado['ganador']])
-        frases = {'empate': 'Empatamos.', 'jugador': 'Ganaste esta ronda.', 'neo': 'Gané esta ronda.'}
-        cierre = (self.estado.frase_final() if self.estado.fase == 'terminada'
-                  else 'Di siguiente cuando quieras continuar.')
-        self.decir('Tú sacaste {}. {} {} {}'.format(resultado['jugador'],
-                   frases[resultado['ganador']], self.estado.frase_marcador(), cierre))
-        self.enviar({'type': 'event', 'event': 'comentario_ronda', 'state': self.estado.snapshot()})
+        try:
+            try:
+                self.revelar_jugada(resultado['neo'])
+            except ErrorPuenteVoz as error:
+                if not terminada:
+                    raise
+                self.notificar_fallo_voz(error, {})
+            colores = {'empate': 0xFFFF00, 'jugador': 0xFF0000, 'neo': 0x00FF00}
+            self.robot.ojos(colores[resultado['ganador']])
+            cierre = self.estado.frase_final() if terminada else 'Di siguiente cuando quieras continuar.'
+            try:
+                self.decir('Tú sacaste {}. {} {} {}'.format(resultado['jugador'],
+                           comentario_ronda(resultado['ganador'], resultado['numero']),
+                           self.estado.frase_marcador(), cierre))
+            except ErrorPuenteVoz as error:
+                if not terminada:
+                    raise
+                self.notificar_fallo_voz(error, {})
+            if terminada:
+                self.cerrar_partida()
+        finally:
+            if terminada:
+                with self.lock:
+                    self.estado.cambiar_fase('terminada')
+                self.publicar()
+        if not terminada:
+            self.enviar({'type': 'event', 'event': 'comentario_ronda', 'state': self.estado.snapshot()})
 
     def ejecutar(self, accion, texto=''):
         if accion == 'iniciar':
@@ -304,7 +382,8 @@ class Sesion(object):
                 if not self.estado.iniciar():
                     return False, ''
             self.publicar()
-            frase = texto or 'Jugaremos {} rondas validas, incluidos los empates.'.format(self.estado.max_rondas)
+            frase = texto or ('Jugaremos {} rondas validas, incluidos los empates. '
+                              'Trae tu mejor jugada, que yo vengo a ganar.').format(self.estado.max_rondas)
             self.decir(frase)
             self.ronda()
             return True, frase
@@ -366,6 +445,8 @@ class Sesion(object):
             ayuda = 'La ronda y el marcador estan guardados. Di siguiente o pulsa N para continuar.'
         elif fase == 'terminada':
             ayuda = 'La partida termino; el resultado y el marcador siguen en pantalla.'
+        elif fase == 'cierre':
+            ayuda = 'La partida ya esta puntuada; estamos terminando el cierre.'
         else:
             ayuda = 'Los comandos del juego siguen disponibles.'
         self.enviar({'type': 'error', 'source': 'voz',
@@ -383,7 +464,7 @@ class Sesion(object):
                      'movimientos': self.robot.movimientos, 'entorno': getattr(self.robot, 'entorno', 'configurado'),
                      'voz': getattr(self.robot, 'voz', 'nao_tts'), 'salida_voz': getattr(self.robot, 'salida_voz', 'nao')})
         self.publicar()
-        self.decir('Hola, soy Neo. Di empezar para jugar, o Neo seguido de una pregunta para conversar.')
+        self.decir(SALUDO)
         while not self.closed.is_set():
             try:
                 dato = self.commands.get(timeout=0.2)
@@ -411,7 +492,7 @@ def main():
     parser.add_argument('--rondas', type=int, choices=(3, 5), default=3)
     parser.add_argument('--espera', type=float, default=6.0)
     parser.add_argument('--reintentos', type=int, choices=(0, 1, 2), default=1)
-    parser.add_argument('--simular', action='store_true', help='Sin NAOqi: solo imprime lo que diria Neo.')
+    parser.add_argument('--simular', action='store_true', help='Sin NAOqi: solo imprime lo que diria Naoqi.')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos del script original.')
     parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
     parser.add_argument('--voz', choices=('nao_tts', 'openai'), default='nao_tts')
