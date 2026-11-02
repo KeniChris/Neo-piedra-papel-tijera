@@ -135,14 +135,23 @@ class PruebasCierre(unittest.TestCase):
 
 
 class PruebasNombreYCanto(unittest.TestCase):
-    def test_nombre_y_variantes_foneticas_activan_comandos_sin_ia(self):
-        conexion, conversador = Mock(), Mock()
-        nombres = ('Naoqi', 'Naoki', 'Naoqui', 'Nao ki', 'Nao qi', 'Nao qui')
+    def test_nombre_y_variantes_foneticas_activan_comandos_y_peticiones(self):
+        conexion, conversador = Mock(), Mock(pedir=Mock(return_value=True))
+        nombres = ('Nao', 'Naoqi', 'Naoki', 'Naoji', 'Naoqui', 'Nao ki', 'Nao qi', 'Nao ji', 'Nao qui')
         for nombre in nombres:
             texto = nombre + ', siguiente'
             self.assertTrue(procesar_texto(texto, conexion, conversador, requiere_nombre=True))
         self.assertEqual(conexion.comando.call_count, len(nombres))
         conversador.pedir.assert_not_called()
+        for nombre in nombres:
+            texto = nombre + ', cuentame una broma'
+            self.assertTrue(procesar_texto(texto, conexion, conversador, requiere_nombre=True))
+            conversador.pedir.assert_called_with(texto)
+        self.assertEqual(conversador.pedir.call_count, len(nombres))
+        for texto in ('Naomi, siguiente', 'anotemos siguiente', 'no siguiente'):
+            self.assertFalse(procesar_texto(texto, conexion, conversador, requiere_nombre=True))
+        self.assertEqual(conexion.comando.call_count, len(nombres))
+        self.assertEqual(conversador.pedir.call_count, len(nombres))
         self.assertIn('Soy Naoqi', SALUDO)
         self.assertNotIn('generada', SALUDO)
         self.assertEqual(normalizar_lectura('Gano Naoqi'), normalizar_lectura('Gano Naoki'))

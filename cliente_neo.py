@@ -267,7 +267,8 @@ COMANDOS = {
 def procesar_texto(texto, conexion, conversador, requiere_nombre=False):
     limpio = normalizar(texto)
     dirigido = False
-    for nombre in ('naoqi', 'naoki', 'naoqui', 'nao ki', 'nao qi', 'nao qui', 'neo'):
+    for nombre in ('naoqi', 'naoki', 'naoji', 'naoqui', 'nao ki', 'nao qi',
+                   'nao ji', 'nao qui', 'nao', 'neo'):
         if limpio == nombre or limpio.startswith(nombre + ' '):
             limpio = limpio[len(nombre):].strip() or 'hola'
             dirigido = True

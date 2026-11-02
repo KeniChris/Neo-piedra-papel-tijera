@@ -19,7 +19,8 @@ conversa; ninguno cambia la eleccion para responder con una jugada ganadora.
 Naoqi habla en primera persona, con retos y bromas cortas. El saludo del
 perfil no repite una presentacion de Luna ni anuncia que la voz es generada
 por IA; puede explicarlo si se le pregunta. El nombre nuevo tambien activa
-el microfono («Naoqi, estas listo?»), incluidas variantes como Naoki/Naoqui.
+el microfono («Naoqi, estas listo?»), incluidas las variantes Nao, Naoki,
+Naoji y Naoqui. Se aceptan al inicio tanto de comandos como de preguntas.
 
 Al terminar la partida, el marcador determina el cierre. Si gana Naoqi,
 pide un estribillo original con entonacion musical y hace una celebracion
