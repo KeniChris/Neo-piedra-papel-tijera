@@ -11,6 +11,7 @@ import sys
 
 from probar_choregraphe import main as iniciar_prueba, localizar_python_naoqi
 from comprobar_naoqi import FALLO_DESTINO
+from voz_openai import VOCES, comprobar_biblioteca, entorno_sin_claves_api, obtener_clave
 
 CARPETA = Path(__file__).resolve().parent
 CONFIG_PREDETERMINADA = CARPETA / 'config' / 'neo_examen.json'
@@ -27,12 +28,15 @@ def cargar_config(ruta=CONFIG_PREDETERMINADA):
     requeridos = {'robot_ip', 'robot_port', 'modelo', 'choregraphe_version', 'python_naoqi', 'modelo_codex',
                   'camara', 'indice_camara_nao', 'microfono', 'voz', 'rondas', 'espera_jugada_seg',
                   'movimientos', 'puerto_control', 'puerto_sensores', 'callback_ip', 'callback_port', 'saludo_ia'}
-    opcionales = {'respaldo_choregraphe', 'puerto_virtual', 'puertos_fisicos_alternativos'}
+    opcionales = {'respaldo_choregraphe', 'puerto_virtual', 'puertos_fisicos_alternativos',
+                  'voz_openai', 'puerto_voz'}
     if not isinstance(config, dict) or set(config) - opcionales != requeridos:
         raise ValueError('El perfil tiene campos faltantes o desconocidos. Usa config/neo_examen.json como referencia.')
     config.setdefault('respaldo_choregraphe', False)
     config.setdefault('puerto_virtual', None)
     config.setdefault('puertos_fisicos_alternativos', [])
+    config.setdefault('voz_openai', 'marin')
+    config.setdefault('puerto_voz', 5008)
     if type(config['respaldo_choregraphe']) is not bool:
         raise ValueError('respaldo_choregraphe debe ser true o false.')
     if config['puerto_virtual'] is not None:
@@ -45,15 +49,17 @@ def cargar_config(ruta=CONFIG_PREDETERMINADA):
             raise ValueError('Puerto fisico alternativo no valido.')
     if len(set(alternativos)) != len(alternativos):
         raise ValueError('Los puertos fisicos alternativos no deben repetirse.')
-    for nombre in ('robot_port', 'puerto_control', 'puerto_sensores', 'callback_port'):
+    for nombre in ('robot_port', 'puerto_control', 'puerto_sensores', 'callback_port', 'puerto_voz'):
         if type(config[nombre]) is not int or not 1 <= config[nombre] <= 65535:
             raise ValueError('Puerto no valido: ' + nombre)
     if len({config[x] for x in ('puerto_control', 'puerto_sensores', 'callback_port')}) != 3:
         raise ValueError('Los puertos locales de control, sensores y callback deben ser distintos.')
     if config['camara'] not in ('nao', 'pc') or config['microfono'] not in ('nao', 'pc', 'no'):
         raise ValueError('Camara debe ser nao/pc y microfono nao/pc/no.')
-    if config['voz'] != 'nao_tts':
-        raise ValueError('Este perfil implementa voz nao_tts; no contiene un agente de voz Gemini.')
+    if config['voz'] not in ('nao_tts', 'openai') or config['voz_openai'] not in VOCES:
+        raise ValueError('Configura voz nao_tts/openai y una voz Realtime admitida, por ejemplo marin.')
+    if config['voz'] == 'openai' and config['puerto_voz'] in {config[x] for x in ('puerto_control', 'puerto_sensores', 'callback_port')}:
+        raise ValueError('El puerto local de voz debe ser distinto de control, sensores y callback.')
     if type(config['rondas']) is not int or config['rondas'] not in (3, 5):
         raise ValueError('Rondas debe ser 3 o 5.')
     if type(config['indice_camara_nao']) is not int or config['indice_camara_nao'] not in (0, 1):
@@ -92,6 +98,9 @@ def argumentos(config, diagnostico=False, sin_ia=False, entorno='fisico'):
         '--puerto-sensores', str(config['puerto_sensores']), '--callback-port', str(config['callback_port']),
         '--indice-camara-nao', str(config['indice_camara_nao']), '--rondas', str(config['rondas']),
         '--espera', str(config['espera_jugada_seg']), '--vision', '--entorno', entorno]
+    if config['voz'] == 'openai':
+        resultado += ['--voz', 'openai', '--voz-openai', config.get('voz_openai', 'marin'),
+                      '--puerto-voz', str(config.get('puerto_voz', 5008))]
     if config.get('respaldo_choregraphe') or entorno == 'virtual':
         resultado.append('--respaldo-pc')
     if config['camara'] == 'nao':
@@ -125,7 +134,8 @@ def ejecutar_virtual(config, diagnostico=False, sin_ia=False):
     virtual = dict(config, robot_ip='127.0.0.1', robot_port=puerto, camara='pc',
                    microfono='pc' if config['microfono'] != 'no' else 'no', callback_ip=None)
     print('RESPALDO: CHOREGRAPHE VIRTUAL en 127.0.0.1:{}'.format(puerto), flush=True)
-    print('Camara y microfono: laptop. Voz: texto en Robot View/Dialog; el virtual puede no emitir audio.')
+    print('Camara y microfono: laptop. Voz: ' + ('OpenAI por parlantes de la laptop.' if config['voz'] == 'openai'
+          else 'texto en Robot View/Dialog; el virtual puede no emitir audio.'))
     return iniciar_prueba(argumentos(virtual, diagnostico, sin_ia, entorno='virtual'))
 
 
@@ -153,11 +163,18 @@ def main(argv=None):
     parser.add_argument('--diagnostico', action='store_true', help='Conecta y comprueba voz y sensores sin iniciar el juego.')
     parser.add_argument('--movimientos', action='store_true')
     parser.add_argument('--sin-ia', action='store_true', help='Prueba explicita del juego sin un modelo de conversacion.')
+    parser.add_argument('--voz', choices=('nao_tts', 'openai'), help='OpenAI genera voz con saldo API separado.')
+    parser.add_argument('--voz-openai', choices=VOCES)
     parser.add_argument('--virtual', action='store_true', help='Ensaya directamente el respaldo de Choregraphe con fuentes PC.')
     parser.add_argument('--puerto-virtual', type=int, help='Puerto actual del virtual; si falta, se pide al necesitarlo.')
     args = parser.parse_args(argv)
+    clave_original = os.environ.get('OPENAI_API_KEY')
     try:
         config = cargar_config(args.config)
+        if args.voz:
+            config['voz'] = args.voz
+        if args.voz_openai:
+            config['voz_openai'] = args.voz_openai
         if args.ip:
             config['robot_ip'] = validar_ip(args.ip)
         if args.movimientos:
@@ -169,6 +186,10 @@ def main(argv=None):
         print('Fuentes: camara={} microfono={} voz={}'.format(config['camara'], config['microfono'], config['voz']))
         print('Modelo:', config['modelo_codex'], '| movimientos:', config['movimientos'])
         if args.verificar_config:
+            if config['voz'] == 'openai':
+                comprobar_biblioteca()
+                print('VOZ_OPENAI_CONFIG: biblioteca disponible; clave ' +
+                      ('presente en entorno.' if os.environ.get('OPENAI_API_KEY') else 'se pedira oculta al ejecutar.'))
             from vision_ia import cargar_dependencias
             cargar_dependencias()
             if config['microfono'] != 'no':
@@ -182,7 +203,8 @@ def main(argv=None):
                         print('AVISO: falta PyAudio para el microfono PC de respaldo; quedaran disponibles las teclas y T.')
             python_naoqi = localizar_python_naoqi(config['python_naoqi'])
             subprocess.run([python_naoqi, str(CARPETA / 'comprobar_naoqi.py'),
-                            '--robot-port', str(config['robot_port']), '--solo-sdk'], check=True)
+                            '--robot-port', str(config['robot_port']), '--solo-sdk'], check=True,
+                           env=entorno_sin_claves_api(os.environ))
             if not args.sin_ia:
                 from codex_neo import CodexLocal, ErrorCodex
                 try:
@@ -196,6 +218,10 @@ def main(argv=None):
                 print('Respaldo: el puerto actual de Choregraphe se pedira al necesitarlo.')
             return 0
         os.environ['NEO_CODEX_MODEL'] = config['modelo_codex']
+        if config['voz'] == 'openai':
+            comprobar_biblioteca()
+            # Se pide una vez incluso si hay respaldo de puertos. Solo vive durante esta ejecucion.
+            os.environ['OPENAI_API_KEY'] = obtener_clave()
         if args.virtual:
             return ejecutar_virtual(config, args.diagnostico, args.sin_ia)
         if not config['robot_ip']:
@@ -208,6 +234,11 @@ def main(argv=None):
     except (KeyboardInterrupt, EOFError):
         print('\nInicio cancelado.')
         return 130
+    finally:
+        if clave_original is None:
+            os.environ.pop('OPENAI_API_KEY', None)
+        else:
+            os.environ['OPENAI_API_KEY'] = clave_original
 
 
 if __name__ == '__main__':
