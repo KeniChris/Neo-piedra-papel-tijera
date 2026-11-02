@@ -266,6 +266,8 @@ COMANDOS = {
 
 def procesar_texto(texto, conexion, conversador, requiere_nombre=False):
     limpio = normalizar(texto)
+    if not limpio:
+        return False
     dirigido = False
     for nombre in ('naoqi', 'naoki', 'naoji', 'naoqui', 'nao ki', 'nao qi',
                    'nao ji', 'nao qui', 'nao', 'neo'):

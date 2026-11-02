@@ -167,7 +167,7 @@ def escuchar_fuente(conexion, conversador, origen, puerto_sensores, estado_micro
                 break
         if conexion.closed.is_set():
             return
-        print('Microfono {} activo. Para conversar di Naoqi seguido de tu pregunta.'.format(origen.upper()))
+        print('Microfono {} activo. Habla directamente; no necesitas decir el nombre del robot.'.format(origen.upper()))
         if estado_microfono is not None:
             estado_microfono['estado'] = 'listo'
         while not conexion.closed.is_set():
@@ -184,7 +184,7 @@ def escuchar_fuente(conexion, conversador, origen, puerto_sensores, estado_micro
                 texto = reconocedor.recognize_google(audio, language='es-PE')
                 if conexion.voz_valida(token):
                     print('Oi:', texto)
-                    procesar_texto(texto, conexion, conversador, requiere_nombre=True)
+                    procesar_texto(texto, conexion, conversador)
             except sr.WaitTimeoutError:
                 continue
             except sr.UnknownValueError:

@@ -132,7 +132,7 @@ Si ese paso termina bien, abre la demostración:
 Introduce de nuevo la IP. Verás la imagen recibida del NAO y el estado de las
 fuentes. Naoqi hace una sola presentacion como rival; el perfil desactiva
 el segundo saludo de Luna con saludo_ia: false. Espera a que Naoqi
-termine de hablar. Di **«Naoqi, ¿estás listo para jugar?»** y comprueba en la
+termine de hablar. Di **«¿Estás listo para jugar?»** y comprueba en la
 consola `Oi:` y la respuesta del modelo. Así se evalúa la conversación completa.
 `gpt-6-luna` tardó unos 5,3 segundos en la consulta real anterior del usuario;
 la demora de esta ejecución puede ser distinta.
@@ -147,7 +147,9 @@ Di **«siguiente»** entre rondas o **«continuar»** si se pausó por falta de 
 Tambien acepta **«continuemos»** y **«sigamos»** sin decir Naoqi: son comandos
 locales y funcionan aunque Codex tarde o falle. No hace falta repetir una
 ronda ya puntuada si falla su anuncio de voz.
-Para preguntas libres, empieza con **«Naoqi»**. Habla cuando haya terminado su voz.
+Para preguntas libres, habla directamente: **no hace falta decir Naoqi**.
+Habla cuando haya terminado su voz. Las preguntas se atienden en las fases
+de conversacion; los comandos locales del juego conservan sus reglas.
 
 Con la ventana de cámara activa también puedes usar:
 

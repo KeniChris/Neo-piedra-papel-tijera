@@ -5,9 +5,13 @@ gracioso. Se conservan nombres de archivos, claves de estado y cabeceras
 NEO por compatibilidad. personalidad_naoqi.py centraliza los textos; el
 perfil usa un solo saludo fijo (saludo_ia false), sin anunciar la tecnologia
 de voz. Las preguntas sobre su origen se responden honestamente.
-El microfono acepta Nao/Naoqi/Naoki/Naoji al inicio de comandos o preguntas,
-ademas de Naoqui y variantes separadas. Conserva limites de palabra para no
-activar peticiones al oir nombres como Naomi ni partir Nao ki como solo Nao.
+El usuario retiro la palabra de activacion: el microfono PC/NAO procesa las
+frases transcritas sin exigir Naoqi ni alias. Nao/Naoqi/Naoki/Naoji/Naoqui
+siguen siendo prefijos opcionales para comandos. Conserva los bloqueos de
+voz por generacion/token antes y despues de transcribir para no procesar
+su propia voz. Las fases del juego siguen limitando cuando conversa la IA.
+Las entradas vacias no deben generar consultas. No restaures el requisito
+de nombre en escuchar_fuente; requiere_nombre queda solo para compatibilidad.
 agente_juego.py usa SystemRandom y mezcla 50% exploracion con frecuencias
 suavizadas o transiciones de rondas ya confirmadas. No hay orden fijo ni
 modelo preentrenado; elige antes de captar la mano actual y reinicia por

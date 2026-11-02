@@ -222,7 +222,7 @@ python probar_choregraphe.py --robot-port $puertoNao --vision --microfono
 ```
 
 Es el micrófono de la laptop. Espera a que Naoqi termine antes de hablar.
-Para conversar di «Naoqi» seguido de la pregunta; también acepta comandos cortos
+Para conversar habla directamente, sin palabra de activacion. Tambien acepta comandos cortos
 como «empezar», «siguiente» y «pausa». La transcripción usa Google, como en
 el código recibido. Si falla, **T** permite escribir sin micrófono.
 «Continuemos» y «sigamos» tambien son comandos locales: no requieren decir
