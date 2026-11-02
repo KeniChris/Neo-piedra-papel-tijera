@@ -288,6 +288,64 @@ class PruebasSocket(unittest.TestCase):
         self.assertFalse(respuestas[0]['accepted'])
         self.assertEqual(self.c.snapshot()['marcador'], {'neo': 0, 'jugador': 0})
 
+    def test_reintento_automatico_conserva_ronda_eleccion_y_rechaza_token_antiguo(self):
+        self.c.comando('iniciar')
+        viejo = self.fase('capturando')['capture_id']
+        esperar(lambda: self.c.snapshot()['fase'] == 'capturando' and
+                self.c.snapshot()['capture_id'] != viejo)
+        estado = self.c.snapshot()
+        self.assertEqual(estado['rondas_completadas'], 0)
+        self.assertEqual(estado['marcador'], {'neo': 0, 'jugador': 0})
+        self.assertEqual(self.sesion.estado._jugada_neo, 'piedra')
+        esperar(lambda: self.c.ventana_captura().get('attempt') == 2)
+        self.c.enviar({'type': 'vision', 'capture_id': viejo, 'gesture': 'papel'})
+        self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'piedra'})
+        resultado = self.fase('entre_rondas')
+        self.assertEqual(resultado['rondas_completadas'], 1)
+        self.assertEqual(resultado['ultima_ronda']['ganador'], 'empate')
+        self.assertEqual(self.c.ventana_captura(), {})
+
+    def test_solo_dos_ventanas_y_pausa_sin_reiniciar_partida(self):
+        self.c.comando('iniciar')
+        self.fase('capturando')
+        estado = self.fase('pausa')
+        self.assertEqual(self.sesion.estado._intento, 2)
+        self.assertEqual(estado['partida'], 1)
+        self.assertEqual(estado['rondas_completadas'], 0)
+        self.assertEqual(estado['marcador'], {'neo': 0, 'jugador': 0})
+
+    def test_pausa_explicita_interrumpe_sin_abrir_reintento(self):
+        self.c.comando('iniciar')
+        self.fase('capturando')
+        self.c.comando('pausar')
+        self.fase('pausa')
+        self.assertEqual(self.sesion.estado._intento, 1)
+
+    def test_anuncio_resultado_y_marcador_comparten_una_sola_lectura(self):
+        from unittest.mock import Mock
+        self.sesion.robot.decir = Mock()
+        self.c.comando('iniciar')
+        estado = self.fase('capturando')
+        self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+        self.fase('entre_rondas')
+        esperar(lambda: any('Marcador:' in c.args[0] for c in self.sesion.robot.decir.call_args_list))
+        frases = [c.args[0] for c in self.sesion.robot.decir.call_args_list if 'Marcador:' in c.args[0]]
+        self.assertEqual(len(frases), 1)
+        self.assertIn('Tú sacaste papel', frases[0])
+        self.assertIn('Di siguiente', frases[0])
+
+    def test_continuar_enviado_durante_captura_no_arranca_otra_ronda_despues(self):
+        errores = []
+        self.c.on_error = errores.append
+        self.c.comando('iniciar')
+        estado = self.fase('capturando')
+        self.c.comando('continuar')
+        self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+        self.fase('entre_rondas')
+        esperar(lambda: bool(errores))
+        self.assertEqual(self.c.snapshot()['fase'], 'entre_rondas')
+        self.assertEqual(self.sesion.estado._intento, 1)
+
     def test_respuesta_modelo_llega_a_voz_y_se_confirma_por_tcp(self):
         texto = 'Hola, soy Neo y estoy listo para conversar.'
         brain = CerebroNeo(transporte=lambda _: respuesta_falsa(texto=texto))

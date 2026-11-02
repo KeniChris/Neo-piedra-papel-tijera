@@ -3,7 +3,7 @@
 Lee `EXAMEN_NAO_V6.md`, `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de cambiar el flujo.
 Lee tambien `VOZ_OPENAI.md` para cambiar la salida de voz. El usuario autorizo
 sustituir el audio de Gemini por OpenAI manteniendo Codex/Luna como cerebro.
-La opcion --voz openai usa Realtime gpt-realtime-2.1-mini y marin; no se pasa
+La opcion --voz openai usa Realtime gpt-realtime-2.1-mini y verse; no se pasa
 ese modelo a /v1/audio/speech. voz_openai.py es Python 3; audio_neo.py debe
 conservar Python 2.7. La clave se pide oculta o se toma de OPENAI_API_KEY,
 no se guarda ni se hereda al SDK/vision/Codex. El SDK recibe solo token local
@@ -11,8 +11,18 @@ efimero y PCM. En el fisico sale por qi.Session/ALAudioDevice; en el virtual
 sale por PyAudio en PC. No requiere ALTextToSpeech en modo OpenAI fisico.
 No cambies el perfil nativo a pago silenciosamente. No reintentes consultas de
 voz de pago al cambiar de puerto. El coste se registra como metadatos locales.
-81 pruebas pasaron con API/SDK simulados y PCM sintetico. No hubo llamada real
-a OpenAI, escucha del PC ni validacion fisica de esta voz. No afirmes lo contrario.
+El usuario confirmo una sesion API real, escucho varias voces en su laptop y
+eligio Verse. Aqui las pruebas usan API/SDK simulados y PCM sintetico. La voz
+del NAO fisico sigue sin validar. Distingue esos resultados al informar.
+El perfil da 6 s de captura y un reintento automatico; conserva puntos y eleccion
+de Neo, cierra el token anterior antes del aviso y abre otro despues de Ya.
+GestoEstable exige 0.30 s y tres muestras nuevas, reiniciadas por token,
+perdida de mano o hueco largo. La guarda de pinza se aplica despues de comprobar
+el puno. No rebajes la deteccion de MediaPipe sin evaluar imagenes reales.
+La vista muestra landmarks, gesto, intento y tiempo. El usuario puede revisar
+el puno antes de iniciar. La mejora geometrica se prueba con landmarks sinteticos;
+el acierto con su camara y postura debe comprobarse. Los anuncios de resultado
+y marcador se envian en un solo bloque para evitar tres consultas de voz.
 El usuario ya obtuvo una respuesta real con Codex y `gpt-6-luna` (5282 ms).
 El usuario no tendra acceso al robot fisico hasta el examen. Choregraphe es
 2.8.7.4-win64-vs2015, robot NAO V6 y puerto fisico confirmado por el usuario

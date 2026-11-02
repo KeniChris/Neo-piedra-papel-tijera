@@ -18,8 +18,24 @@ saldo API separado. `probar_voz.py` permite escuchar primero la laptop sin robot
 `iniciar_examen.py --voz openai` reproduce por el NAO fisico y `--virtual --voz openai`
 por la laptop. Pide la clave oculta, sin guardarla. El perfil predeterminado
 conserva `nao_tts` para no activar consultas de pago al ejecutar los comandos
-anteriores. La voz OpenAI esta probada con respuestas/SDK simulados; falta
-validar una llamada real a la API y escuchar la salida en ambos dispositivos.
+anteriores. El usuario confirmo la voz OpenAI en su laptop y eligio Verse;
+la salida del NAO fisico sigue pendiente.
+
+## Captura y reintentos
+
+El perfil usa seis segundos despues de «Ya» y permite un reintento automatico
+de la misma ronda. Conserva la eleccion de Neo y los puntos; al agotar los
+intentos, «continuar» retoma esa ronda. `espera_jugada_seg` y
+`reintentos_captura` se ajustan en `config/neo_examen.json`.
+
+Se corrige un rechazo del puno con el pulgar junto al indice. La confirmacion
+exige 0.30 s y al menos tres muestras de la misma captura, en vez de seis
+frames a cualquier velocidad. La vista dibuja la mano e indica el gesto,
+el tiempo y el intento para comprobar el puno antes de pulsar S. La geometria
+se comprobo con landmarks sinteticos; falta evaluarla con la camara del usuario.
+
+Prueba primero con `.\.venv_neo\Scripts\python.exe vision_ia.py --solo-camara`.
+Ese modo abre la webcam PC sin Codex, NAOqi, microfono ni voz de pago.
 
 ## Modo de examen con el robot físico
 
@@ -98,7 +114,7 @@ En el virtual, el texto puede aparecer en Robot View o Dialog sin audio.
 - El usuario obtuvo una respuesta real de Codex con `gpt-6-luna` en su laptop.
 - El usuario confirmó `PROXY_OK` y `NAOQI_OK` en su Choregraphe y ejecutó
   cuenta atrás y pausa automática.
-- Pasaron 81 pruebas automatizadas, con CLI/API/SDK simulados y transporte
+- Pasaron 103 pruebas automatizadas, con CLI/API/SDK simulados y transporte
   local real; SpeechRecognition se comprobó con PCM sintético, sin hardware.
   Las de voz comprueban PCM, cache, errores, cierre y orden de captura; no
   consultan OpenAI ni prueban la pronunciacion o audibilidad del robot.

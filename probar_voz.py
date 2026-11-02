@@ -7,7 +7,7 @@ import sys
 import wave
 
 from voz_openai import (ErrorVoz, FRASE_PRUEBA, LectorOpenAI, MODELO, ReproductorPC,
-                        TASA, VOCES, comprobar_biblioteca, obtener_clave)
+                        TASA, VOCES, VOZ_PREDETERMINADA, comprobar_biblioteca, obtener_clave)
 
 CARPETA = Path(__file__).resolve().parent
 
@@ -18,7 +18,7 @@ def main(argv=None):
     modo.add_argument('--solo-config', action='store_true', help='Comprueba biblioteca, sin API ni dispositivos.')
     modo.add_argument('--diagnostico-api', action='store_true',
                       help='Conecta y valida la configuracion Realtime sin crear una respuesta ni audio.')
-    parser.add_argument('--voz', choices=VOCES, default='marin')
+    parser.add_argument('--voz', choices=VOCES, default=VOZ_PREDETERMINADA)
     parser.add_argument('--texto', default=FRASE_PRUEBA)
     args = parser.parse_args(argv)
     lector = None

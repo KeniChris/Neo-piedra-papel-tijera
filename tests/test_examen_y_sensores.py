@@ -163,6 +163,19 @@ class PruebasHTTP(unittest.TestCase):
 
 
 class PruebasPerfilExamen(unittest.TestCase):
+    def test_reintentos_se_acotan_y_perfil_anterior_conserva_cero(self):
+        perfil = cargar_config()
+        with tempfile.TemporaryDirectory() as t:
+            ruta = Path(t) / 'perfil.json'
+            perfil.pop('reintentos_captura')
+            ruta.write_text(json.dumps(perfil))
+            self.assertEqual(cargar_config(ruta)['reintentos_captura'], 0)
+            for valor in (-1, 3, True):
+                perfil['reintentos_captura'] = valor
+                ruta.write_text(json.dumps(perfil))
+                with self.assertRaises(ValueError):
+                    cargar_config(ruta)
+
     def test_configuracion_apunta_a_nao9559_y_no_inventa_ip(self):
         perfil = cargar_config()
         self.assertEqual(perfil['robot_port'], 9559)

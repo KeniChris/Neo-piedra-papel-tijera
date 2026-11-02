@@ -1,13 +1,14 @@
 # Voz OpenAI para Neo
 
 Luna sigue generando las respuestas mediante Codex. Esta opcion convierte ese
-texto y los avisos del juego en audio con OpenAI Realtime y la voz `marin`.
+texto y los avisos del juego en audio con OpenAI Realtime y la voz `verse`,
+elegida por el usuario despues de escuchar las muestras en su laptop.
 No sustituye las reglas, la camara ni la transcripcion del microfono.
 
-**Implementacion comprobada con respuestas OpenAI y SDK simulados, HTTP/TCP
-locales reales y PCM sintetico. Falta probar una solicitud real a OpenAI,
-escuchar la laptop y escuchar el NAO fisico con este programa.** No hay una
-clave de API en el proyecto y las pruebas automatizadas no consumen saldo.
+**El usuario confirmo la conexion real a OpenAI y la reproduccion de voz en
+su laptop. Falta escuchar el NAO fisico con este programa.** Las pruebas
+automatizadas usan respuestas y SDK simulados, HTTP/TCP locales y PCM
+sintetico. No hay una clave en el proyecto y esas pruebas no consumen saldo.
 
 ## Saldo y clave
 
@@ -113,17 +114,22 @@ en el robot. Si pasa, inicia la partida:
 .\.venv_neo\Scripts\python.exe iniciar_examen.py --voz openai
 ```
 
-El arranque genera la frase de prueba y prepara dos frases de cuenta atras:
+El arranque genera la frase de prueba y prepara dos frases de cuenta atras
+y el aviso de reintento cuando este activado:
 son consultas de pago. Las frases repetidas se reutilizan en memoria durante
 esa ejecucion; no se vuelven a cobrar si salen de esa cache local. Al reiniciar
 el programa se pierde la cache. Las respuestas nuevas de Luna necesitan audio
 nuevo. No se promete respuesta instantanea ni una latencia ya medida.
 
 `--voz-openai coral` cambia la voz en el lanzador. Tambien puedes seleccionar
-`"voz": "openai"` y `"voz_openai": "marin"` en `config/neo_examen.json` para
+`"voz": "openai"` y `"voz_openai": "verse"` en `config/neo_examen.json` para
 no repetir la opcion. El perfil recibido conserva `nao_tts` por defecto para
 que un arranque habitual no active consultas de pago. `--voz nao_tts` conserva
 la voz nativa y no usa la API de audio.
+
+La voz elegida se cambia en `voz_openai` del JSON, sin editar Python.
+El valor predeterminado de `probar_voz.py` y del lanzador manual tambien es
+Verse. El modelo sigue siendo `gpt-realtime-2.1-mini`.
 
 Un fallo de clave, saldo o servicio de voz no cambia al virtual ni reintenta
 automaticamente la consulta. Tras iniciar una prueba de audio de pago, tampoco

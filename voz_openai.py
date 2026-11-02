@@ -15,8 +15,11 @@ import threading
 import time
 import unicodedata
 
+from estado_juego import AVISO_REINTENTO
+
 MODELO = 'gpt-realtime-2.1-mini'
 VOCES = ('marin', 'cedar', 'coral', 'alloy', 'ash', 'ballad', 'echo', 'sage', 'shimmer', 'verse')
+VOZ_PREDETERMINADA = 'verse'
 TASA = 24000
 MAX_PCM = TASA * 2 * 45
 FRASE_PRUEBA = 'Hola, soy Neo. Esta es mi voz generada por inteligencia artificial.'
@@ -140,7 +143,7 @@ def resumen_uso(uso):
 
 
 class LectorOpenAI:
-    def __init__(self, clave, voz='marin', conectar=None, registro=None):
+    def __init__(self, clave, voz=VOZ_PREDETERMINADA, conectar=None, registro=None):
         if voz not in VOCES:
             raise ErrorVoz('Voz Realtime no admitida.')
         self._clave = clave
@@ -391,7 +394,10 @@ class ServicioVoz:
         self.servidor.server_close()
         self.hilo.join(timeout=2)
 
-    def preparar_cuenta(self):
-        print('Preparando dos frases de cuenta atras con OpenAI; estas consultas consumen API.', flush=True)
-        for frase in ('Piedra, papel o tijera.', 'Ya.'):
+    def preparar_cuenta(self, reintentos=1):
+        print('Preparando cuenta atras y ayuda de captura con OpenAI; estas consultas consumen API.', flush=True)
+        frases = ['Piedra, papel o tijera.', 'Ya.']
+        if reintentos:
+            frases.append(AVISO_REINTENTO)
+        for frase in frases:
             self.lector.sintetizar(frase)
