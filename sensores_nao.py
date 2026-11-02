@@ -52,7 +52,7 @@ class BufferAudio(object):
                 datos = binario(datos)
                 if canales != 1 or muestras <= 0 or len(datos) != muestras * 2:
                     raise ValueError('Se esperaba PCM mono de 16 bits a 16000 Hz.')
-                valores = struct.unpack('<{}h'.format(muestras), datos)
+                valores = struct.unpack(b'<%dh' % muestras, datos)
                 self.rms = int(math.sqrt(sum(x * x for x in valores) / float(muestras)))
                 self.secuencia += 1
                 self.ultimo = RELOJ()

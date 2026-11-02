@@ -43,6 +43,9 @@ se pide al ejecutar; no se copia la IP privada ni las credenciales del ZIP.
 `comprobar_naoqi.py`, `robot_server_ia.py`, `sensores_nao.py`, `naoqi_compat.py` y `estado_juego.py` deben conservar
 compatibilidad con Python 2.7. El intérprete del SDK original era
 `C:\Python27\python.exe`. Copia IP y puerto del destino real; no los adivines.
+Los formatos de struct deben ser bytes: b'P' para calcsize y b'<%dh' % muestras
+para PCM. Con unicode_literals los formatos sin b fallan en el SDK Python 2;
+tests/test_naoqi_compat.py reproduce esa restriccion con un doble estricto.
 El puerto virtual cambio de 62213 a 61778. El usuario ya obtuvo PROXY_OK y
 NAOQI_OK en 127.0.0.1:61778 con el SDK real de Python 2.7. Se corrigio el paso
 de Unicode al SDK clasico con cadena_naoqi. No pases Unicode directamente

@@ -2,6 +2,7 @@
 import contextlib
 import io
 from pathlib import Path
+import struct
 import sys
 from types import SimpleNamespace
 import unittest
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comprobar_naoqi import main as comprobar
 from naoqi_compat import cadena_naoqi
 from robot_server_ia import Robot
+from sensores_nao import BufferAudio
 
 
 class SDKClasicoFalso:
@@ -80,6 +82,39 @@ class PruebasCompatibilidadNAOqi(unittest.TestCase):
                     self.assertEqual(comprobar(), 0)
         self.assertIn('NAOQI_OK', salida.getvalue())
         self.assertEqual(sdk.proxies, [b'ALTextToSpeech'])
+
+    def test_diagnostico_openai_virtual_con_struct_python2_simulado(self):
+        def calcsize_python2(formato):
+            if not isinstance(formato, bytes):
+                raise TypeError('Struct() argument 1 must be string, not unicode')
+            self.assertEqual(formato, b'P')
+            return 4  # Interprete SDK de 32 bits, simulado.
+
+        sdk = SDKClasicoFalso()
+        argumentos = ['comprobar_naoqi.py', '--robot-port', '61455',
+                      '--voz', 'openai', '--salida-voz', 'pc']
+        with patch.dict(sys.modules, {'naoqi': sdk}), patch('naoqi_compat.PYTHON_2', True):
+            with patch('comprobar_naoqi.struct', SimpleNamespace(calcsize=calcsize_python2)):
+                with patch.object(sys, 'argv', argumentos), contextlib.redirect_stdout(io.StringIO()) as salida:
+                    self.assertEqual(comprobar(), 0)
+        self.assertIn('Arquitectura del interprete SDK: 32 bits', salida.getvalue())
+        self.assertIn('NAOQI_OK', salida.getvalue())
+        self.assertEqual(sdk.proxies, [b'ALMemory'])
+
+    def test_microfono_pcm_con_struct_python2_simulado(self):
+        def unpack_python2(formato, datos):
+            if not isinstance(formato, bytes):
+                raise TypeError('Struct() argument 1 must be string, not unicode')
+            return struct.unpack(formato, datos)
+
+        audio = BufferAudio()
+        pcm = struct.pack(b'<4h', 100, -100, 100, -100)
+        struct_falso = SimpleNamespace(unpack=unpack_python2, error=struct.error)
+        with patch('sensores_nao.struct', struct_falso):
+            audio.recibir(1, 4, pcm)
+        self.assertEqual(audio.estado()['error'], '')
+        self.assertEqual(audio.estado()['rms'], 100)
+        self.assertEqual(list(audio.paquetes), [(1, pcm)])
 
     def test_puente_convierte_nombres_idioma_frases_y_movimientos(self):
         sdk = SDKClasicoFalso()

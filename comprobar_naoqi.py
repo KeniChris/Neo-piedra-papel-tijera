@@ -23,7 +23,8 @@ def main():
     parser.add_argument('--probar-voz', action='store_true', help='Lee una frase a traves del puente OpenAI; consume API.')
     args = parser.parse_args()
     print('Interprete NAOqi:', sys.executable)
-    print('Arquitectura del interprete SDK:', struct.calcsize('P') * 8, 'bits')
+    # Python 2 exige bytes en los formatos de struct, incluso con unicode_literals.
+    print('Arquitectura del interprete SDK:', struct.calcsize(b'P') * 8, 'bits')
     print('Destino: {}:{}'.format(args.robot_ip, args.robot_port))
     try:
         import naoqi
