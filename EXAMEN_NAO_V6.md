@@ -159,8 +159,16 @@ Con la ventana de cámara activa también puedes usar:
 | N / C | Siguiente / continuar |
 | P | Pausar el juego |
 | M / R | Marcador / reglas |
+| V o clic en MIC | Silenciar / reactivar el microfono |
 | T | Escribir en la terminal para conversar |
 | Esc | Cerrar el cliente y sus puentes |
+
+El boton MIC aparece en la esquina inferior derecha de la imagen: verde
+cuando escucha y rojo cuando esta silenciado. Al reactivar descarta audio
+anterior; teclado y texto siguen disponibles. Mientras Codex piensa puedes
+ver el estado en pantalla. El audio nuevo no invalida la respuesta actual;
+solo mantiene una peticion pendiente. «Juguemos» y «Empecemos el juego» son
+ordenes locales y no esperan al modelo.
 
 El agente local de Naoqi combina azar con frecuencias y transiciones de
 jugadas humanas anteriores; reinicia por partida y no usa la mano actual.

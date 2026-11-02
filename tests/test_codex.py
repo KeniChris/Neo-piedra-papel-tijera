@@ -1,14 +1,19 @@
 """Ejecuta una CLI FALSA local: no llama a Codex ni consume limites del plan."""
 import json
 import os
+import shutil
 from pathlib import Path
 import sys
 import tempfile
+import threading
+import time
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from codex_neo import CodexLocal, ErrorCodex, entorno_sin_claves_api
+from cliente_neo import Conversador
 from estado_juego import EstadoJuego
 from ia_neo import CerebroNeo, HERRAMIENTA, INSTRUCCIONES, ErrorIA
 
@@ -29,6 +34,8 @@ assert '--dangerously-bypass-approvals-and-sandbox' not in sys.argv
 prompt = sys.stdin.read()
 assert 'No leas archivos' in prompt
 if os.environ.get('NEO_FAKE_SLEEP'):
+    if os.environ.get('NEO_FAKE_MARKER'):
+        Path(os.environ['NEO_FAKE_MARKER']).write_text(str(os.getpid()))
     time.sleep(2)
 schema = json.loads(Path(sys.argv[sys.argv.index('--output-schema') + 1]).read_text())
 assert schema['additionalProperties'] is False
@@ -95,6 +102,55 @@ class PruebasCodex(unittest.TestCase):
             with self.assertRaisesRegex(ErrorCodex, 'tiempo de espera'):
                 CodexLocal(comando=self.comando, timeout=0.1).responder(
                     INSTRUCCIONES, [], HERRAMIENTA['parameters'])
+
+    def test_cierre_del_conversador_espera_el_hilo_y_detiene_sus_procesos(self):
+        marcador = Path(self.temporal.name) / 'proceso_iniciado'
+        procesos = []
+        popen_real = __import__('subprocess').Popen
+        def ejecutar(*args, **kwargs):
+            proceso = popen_real(*args, **kwargs)
+            procesos.append(proceso)
+            return proceso
+        conexion = SimpleNamespace(closed=threading.Event(), snapshot=lambda: EstadoJuego().snapshot(),
+                                   enviar=Mock(return_value=True))
+        with patch.dict(os.environ, {'NEO_FAKE_SLEEP': '1', 'NEO_FAKE_MARKER': str(marcador)}):
+            with patch('codex_neo.localizar_codex', return_value=self.comando), \
+                 patch('codex_neo.subprocess.Popen', side_effect=ejecutar):
+                cerebro = CerebroNeo(provider='codex')
+                conversador = Conversador(conexion, cerebro, comentarios=False)
+                try:
+                    conversador.pedir('Hola')
+                    fin = time.monotonic() + 3
+                    while not marcador.exists() and time.monotonic() < fin:
+                        time.sleep(.01)
+                    self.assertTrue(marcador.exists())
+                    conversador.cerrar()
+                    self.assertFalse(conversador.hilo.is_alive())
+                    self.assertTrue(all(p.poll() is not None for p in procesos))
+                    conexion.enviar.assert_not_called()
+                finally:
+                    conversador.cerrar()
+
+    def test_bloqueo_de_carpeta_tipo_windows_no_oculta_una_respuesta_valida(self):
+        rmdir_real, unlink_real = os.rmdir, os.unlink
+        carpetas = set()
+        def bloquear(funcion, ruta, *args, **kwargs):
+            if Path(ruta).name.startswith('neo_codex_'):
+                carpetas.add(str(ruta))
+                error = PermissionError('WINERROR_32_SIMULADO')
+                error.winerror = 32
+                raise error
+            return funcion(ruta, *args, **kwargs)
+        try:
+            with patch('tempfile._os.rmdir', side_effect=lambda p, *a, **k: bloquear(rmdir_real, p, *a, **k)), \
+                 patch('tempfile._os.unlink', side_effect=lambda p, *a, **k: bloquear(unlink_real, p, *a, **k)):
+                respuesta = CodexLocal(comando=self.comando).responder(
+                    INSTRUCCIONES, [], HERRAMIENTA['parameters'])
+            self.assertEqual(respuesta['accion'], 'hablar')
+            self.assertTrue(carpetas)
+        finally:
+            for carpeta in carpetas:
+                shutil.rmtree(carpeta, ignore_errors=True)
 
 
 if __name__ == '__main__':

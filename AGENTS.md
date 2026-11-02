@@ -12,6 +12,20 @@ voz por generacion/token antes y despues de transcribir para no procesar
 su propia voz. Las fases del juego siguen limitando cuando conversa la IA.
 Las entradas vacias no deben generar consultas. No restaures el requisito
 de nombre en escuchar_fuente; requiere_nombre queda solo para compatibilidad.
+El usuario pidio mute manual: V o clic en el boton MIC de la camara alternan
+microfono_silenciado. Invalida el token al silenciar y reactivar, conserva el
+bloqueo mientras habla el robot y descarta PCM PC acumulado al volver a escuchar.
+El control es del microfono; las teclas/texto y la salida de voz siguen activos.
+Una frase nueva no invalida la respuesta de IA en curso: conserva una sola
+pendiente y espera agent_result antes de consultar la siguiente. Solo comandos
+directos, cierre o cambios de estado invalidan la respuesta. Empecemos el juego,
+juguemos y perdon/okay/comencemos se resuelven localmente sin IA; no conviertas
+negaciones en ordenes. Los errores del puente tambien deben confirmar rechazo
+de la peticion de agente para liberar la espera.
+Al cerrar, Conversador cancela Codex y espera al hilo. CodexLocal comprueba
+cancelacion durante communicate, termina y espera solo sus procesos, y limpia
+su TemporaryDirectory con ignore_cleanup_errors para bloqueos Windows residuales.
+No mates procesos Codex ajenos ni borres carpetas Temp de otros programas.
 agente_juego.py usa SystemRandom y mezcla 50% exploracion con frecuencias
 suavizadas o transiciones de rondas ya confirmadas. No hay orden fijo ni
 modelo preentrenado; elige antes de captar la mano actual y reinicia por

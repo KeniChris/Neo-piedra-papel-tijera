@@ -186,6 +186,14 @@ class CerebroNeo:
         respuesta['latencia_ms'] = round((time.monotonic() - inicio) * 1000)
         return respuesta
 
+    def cancelar(self):
+        if self.codex is not None:
+            self.codex.cancelar()
+
+    def cerrar(self):
+        if self.codex is not None:
+            self.codex.cerrar()
+
     def confirmar_hablado(self, usuario, hablado):
         with self.historia_lock:
             self.historia.append({'role': 'user', 'content': usuario[:800]})
