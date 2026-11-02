@@ -21,7 +21,7 @@ from personalidad_naoqi import (NOMBRE, SALUDO, INVITACION_APRETON, JINGLE_VICTO
 
 REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
           'Muestra tu jugada cuando diga ya. Di siguiente para otra ronda, '
-          'pausa para esperar, o Naoqi seguido de una pregunta para conversar.')
+          'pausa para esperar, o haz una pregunta para conversar.')
 
 
 class Robot(object):
