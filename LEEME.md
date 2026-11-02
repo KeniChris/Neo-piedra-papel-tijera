@@ -21,6 +21,10 @@ respaldo autorizado: sensores PC ante fallos individuales y un intento con
 Choregraphe virtual si falla el destino al arrancar. El entorno y las fuentes
 activas se muestran expresamente. Usa `iniciar_examen.py --virtual` para
 ensayar con el virtual y los dispositivos de la laptop; pide su puerto actual.
+El perfil intenta 9559 y despues 9561 en la misma IP antes de pasar al virtual,
+segun los puertos conocidos por el equipo y el proyecto compartido. Ese
+proyecto usa microfono PC y audio generado por Gemini para los altavoces NAO;
+no demuestra captura de microfonos ni camara NAO en nuestra aplicacion.
 
 ## Actualizacion: Choregraphe y politicas editables
 
@@ -316,7 +320,7 @@ No constituye una prueba de voz, movimientos fisicos ni respuestas de un LLM.
 
 ## Validacion realizada
 
-Se ejecutaron 65 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
+Se ejecutaron 68 pruebas automatizadas en Python 3, con CLI/API y SDK/robot simulados:
 las nueve combinaciones de jugadas, limite de rondas, empates, reintentos,
 marcador, captura identificada por ventana, conexion TCP local entre procesos,
 contexto antiguo, cancelacion de decisiones pendientes, comandos con negacion,

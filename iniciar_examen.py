@@ -27,14 +27,24 @@ def cargar_config(ruta=CONFIG_PREDETERMINADA):
     requeridos = {'robot_ip', 'robot_port', 'modelo', 'choregraphe_version', 'python_naoqi', 'modelo_codex',
                   'camara', 'indice_camara_nao', 'microfono', 'voz', 'rondas', 'espera_jugada_seg',
                   'movimientos', 'puerto_control', 'puerto_sensores', 'callback_ip', 'callback_port', 'saludo_ia'}
-    if not isinstance(config, dict) or set(config) - {'respaldo_choregraphe', 'puerto_virtual'} != requeridos:
+    opcionales = {'respaldo_choregraphe', 'puerto_virtual', 'puertos_fisicos_alternativos'}
+    if not isinstance(config, dict) or set(config) - opcionales != requeridos:
         raise ValueError('El perfil tiene campos faltantes o desconocidos. Usa config/neo_examen.json como referencia.')
     config.setdefault('respaldo_choregraphe', False)
     config.setdefault('puerto_virtual', None)
+    config.setdefault('puertos_fisicos_alternativos', [])
     if type(config['respaldo_choregraphe']) is not bool:
         raise ValueError('respaldo_choregraphe debe ser true o false.')
     if config['puerto_virtual'] is not None:
         validar_puerto_virtual(config['puerto_virtual'])
+    alternativos = config['puertos_fisicos_alternativos']
+    if not isinstance(alternativos, list) or len(alternativos) > 3:
+        raise ValueError('Configura como maximo tres puertos fisicos alternativos conocidos.')
+    for puerto in alternativos:
+        if type(puerto) is not int or not 1 <= puerto <= 65535:
+            raise ValueError('Puerto fisico alternativo no valido.')
+    if len(set(alternativos)) != len(alternativos):
+        raise ValueError('Los puertos fisicos alternativos no deben repetirse.')
     for nombre in ('robot_port', 'puerto_control', 'puerto_sensores', 'callback_port'):
         if type(config[nombre]) is not int or not 1 <= config[nombre] <= 65535:
             raise ValueError('Puerto no valido: ' + nombre)
@@ -120,9 +130,17 @@ def ejecutar_virtual(config, diagnostico=False, sin_ia=False):
 
 
 def ejecutar_con_respaldo(config, diagnostico=False, sin_ia=False):
-    resultado = iniciar_prueba(argumentos(config, diagnostico, sin_ia))
-    if resultado == FALLO_DESTINO and config.get('respaldo_choregraphe'):
-        print('El destino fisico fallo durante el arranque. Intentando una vez el virtual de Choregraphe.', flush=True)
+    puertos = [config['robot_port']]
+    if config.get('respaldo_choregraphe'):
+        puertos += [p for p in config.get('puertos_fisicos_alternativos', []) if p != config['robot_port']]
+    for puerto in puertos:
+        print('INTENTO FISICO: {}:{}'.format(config['robot_ip'], puerto), flush=True)
+        destino = dict(config, robot_port=puerto)
+        resultado = iniciar_prueba(argumentos(destino, diagnostico, sin_ia))
+        if resultado != FALLO_DESTINO:
+            return resultado
+    if config.get('respaldo_choregraphe'):
+        print('Los destinos fisicos configurados fallaron al arrancar. Intentando una vez el virtual de Choregraphe.', flush=True)
         return ejecutar_virtual(config, diagnostico, sin_ia)
     return resultado
 

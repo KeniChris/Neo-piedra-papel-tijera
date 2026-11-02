@@ -3,6 +3,7 @@
 from __future__ import print_function, unicode_literals
 
 import argparse
+import struct
 import sys
 import traceback
 
@@ -18,6 +19,7 @@ def main():
     parser.add_argument('--solo-sdk', action='store_true', help='Importa el SDK sin conectar con un robot.')
     args = parser.parse_args()
     print('Interprete NAOqi:', sys.executable)
+    print('Arquitectura del interprete SDK:', struct.calcsize('P') * 8, 'bits')
     print('Destino: {}:{}'.format(args.robot_ip, args.robot_port))
     try:
         import naoqi

@@ -2,7 +2,7 @@
 
 Para el **NAO V6 fisico el dia del examen**, empieza por
 [EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md). Ese perfil ya usa Choregraphe 2.8.7.4,
-puerto fisico 9559, voz nativa y fuentes de camara/microfono NAO. La IP se pide
+puerto fisico inicial 9559 (segundo intento 9561), voz nativa y fuentes de camara/microfono NAO. La IP se pide
 al ejecutar. Su validacion con hardware sigue pendiente. Los pasos de esta
 guia mantienen las fuentes PC del ensayo virtual.
 
@@ -212,7 +212,8 @@ respondiendo cuando se le pregunta.
 **Para la version de examen actual, sigue [EXAMEN_NAO_V6.md](EXAMEN_NAO_V6.md).**
 Prepara `requirements_examen.txt` con `preparar_vision.py --examen`, verifica
 software ahora y usa el diagnostico al llegar al NAO. El equipo ya indico
-puerto fisico **9559**. Las instrucciones manuales siguientes se conservan
+puerto fisico **9559**; el proyecto compartido por el companero usa **9561**
+y ahora se intenta tambien antes del virtual. Las instrucciones manuales siguientes se conservan
 para probar solamente el puente o las fuentes PC.
 
 Lleva la carpeta completa y los resultados de los pasos anteriores. Si se usa

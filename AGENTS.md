@@ -4,7 +4,10 @@ Lee `EXAMEN_NAO_V6.md`, `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de c
 El usuario ya obtuvo una respuesta real con Codex y `gpt-6-luna` (5282 ms).
 El usuario no tendra acceso al robot fisico hasta el examen. Choregraphe es
 2.8.7.4-win64-vs2015, robot NAO V6 y puerto fisico confirmado por el usuario
-9559. La IP fisica es desconocida: se pide al ejecutar, no se inventa.
+9559. El proyecto del companero probado con NAO usa 9561 en su .env (aunque
+su config.py tiene 9559 por defecto). El perfil intenta 9559 y despues 9561
+antes del virtual, solo ante codigo 70 y con respaldo activado. La IP fisica
+se pide al ejecutar; no se copia la IP privada ni las credenciales del ZIP.
 
 `probar_choregraphe.py` es Python 3 y lanza el intérprete NAOqi configurado.
 `comprobar_naoqi.py`, `robot_server_ia.py`, `sensores_nao.py`, `naoqi_compat.py` y `estado_juego.py` deben conservar
@@ -31,7 +34,8 @@ Los puentes HTTP/control son locales; no publiques sus puertos en la red.
 El token de sensores es efimero y no se guarda. El usuario autorizo respaldo
 con Choregraphe cuando falle el fisico. El perfil activa respaldo_choregraphe:
 sensores NAO fallidos se intentan con PC; si falla el destino al arrancar
-(codigo 70), se intenta una vez el virtual 127.0.0.1 con fuentes PC. Se pide
+(codigo 70), se agotan los puertos fisicos configurados y se intenta una vez
+el virtual 127.0.0.1 con fuentes PC. Se pide
 el puerto virtual actual si falta; no se supone que siga siendo 61778.
 --virtual permite ensayar ese respaldo directamente. No se cambia de destino
 tras cancelacion, cierre normal ni fallos locales/IA. El HUD y hello indican
