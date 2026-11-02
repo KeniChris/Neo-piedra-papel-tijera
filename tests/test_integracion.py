@@ -10,10 +10,11 @@ import time
 import unittest
 import urllib.error
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cliente_neo import ConexionNeo, Conversador, procesar_texto
+from audio_neo import ErrorPuenteVoz
 from estado_juego import EstadoJuego, JUGADAS, texto_hablable
 from ia_neo import CerebroNeo, ErrorIA, FUNCION, interpretar_respuesta
 from robot_server_ia import Robot, Sesion
@@ -157,6 +158,18 @@ class ConexionFalsa:
 
 
 class PruebasConversacion(unittest.TestCase):
+    def test_continuemos_y_sigamos_son_comandos_locales_sin_nombre_ni_ia(self):
+        c, b = ConexionFalsa(), Mock()
+        for texto in ('continuemos', 'sigamos', 'seguimos', 'sigue', 'otra ronda',
+                      'Neo, continuemos', 'siguiente por favor', 'vamos con la siguiente'):
+            with self.subTest(texto=texto):
+                self.assertTrue(procesar_texto(texto, c, b, requiere_nombre=True))
+                self.assertEqual(c.commands[-1], 'continuar')
+        b.pedir.assert_not_called()
+        cantidad = len(c.commands)
+        self.assertFalse(procesar_texto('no continuemos', c, b, requiere_nombre=True))
+        self.assertEqual(len(c.commands), cantidad)
+
     def test_negacion_no_arranca_y_nombre_activa_conversacion(self):
         c = ConexionFalsa()
         class ConversadorFalso:
@@ -220,6 +233,25 @@ class PruebasConversacion(unittest.TestCase):
         esperar(lambda: not b.en_curso)
         self.assertEqual(c.sent, [])
 
+    def test_timeout_de_consulta_cancelada_no_restaura_un_error_antiguo(self):
+        c = ConexionFalsa()
+        entro, liberar = threading.Event(), threading.Event()
+        def responder(*args):
+            entro.set()
+            liberar.wait(2)
+            raise ErrorIA('TIMEOUT_IA_SIMULADO')
+        b = Conversador(c, Mock(responder=responder), comentarios=False)
+        self.addCleanup(b.cerrar)
+        self.addCleanup(liberar.set)
+        self.assertTrue(b.pedir('Comenta la ronda'))
+        self.assertTrue(entro.wait(1))
+        b.error = 'ERROR_ANTIGUO'
+        b.cancelar()
+        liberar.set()
+        esperar(lambda: not b.en_curso)
+        self.assertEqual(b.error, '')
+        self.assertEqual(c.sent, [])
+
 
 class PruebasSocket(unittest.TestCase):
     def setUp(self):
@@ -264,6 +296,80 @@ class PruebasSocket(unittest.TestCase):
                 self.c.comando('continuar')
         self.c.comando('continuar')
         self.assertEqual(self.c.snapshot()['rondas_completadas'], 3)
+
+    def test_timeout_de_voz_en_resultado_conserva_fase_puntos_y_permite_terminar(self):
+        errores = []
+        self.c.on_error = errores.append
+        frases = []
+        def decir(texto):
+            frases.append(texto)
+            if texto.startswith('Tú sacaste'):
+                raise ErrorPuenteVoz('TIMEOUT_VOZ_SIMULADO')
+        self.sesion.robot.decir = decir
+        self.c.comando('iniciar')
+        for numero in range(1, 4):
+            estado = self.fase('capturando')
+            self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+            esperar(lambda: len(errores) == numero)
+            estado = self.fase('terminada' if numero == 3 else 'entre_rondas')
+            self.assertEqual(estado['rondas_completadas'], numero)
+            self.assertEqual(estado['marcador'], {'neo': 0, 'jugador': numero})
+            self.assertFalse(self.c.closed.is_set())
+            self.assertFalse(self.c.hablando)
+            if numero < 3:
+                procesar_texto('continuemos', self.c, None, requiere_nombre=True)
+        self.assertEqual(sum(t.startswith('Tú sacaste') for t in frases), 3)
+
+    def test_timeout_en_ya_pausa_sin_capturar_y_conserva_eleccion_al_reanudar(self):
+        errores = []
+        self.c.on_error = errores.append
+        def decir(texto):
+            if texto == 'Ya.':
+                raise ErrorPuenteVoz('TIMEOUT_CUENTA_SIMULADO')
+        self.sesion.robot.decir = decir
+        self.c.comando('iniciar')
+        esperar(lambda: bool(errores))
+        estado = self.fase('pausa')
+        self.assertEqual(estado['motivo_pausa'], 'fallo_voz')
+        self.assertIsNone(estado['capture_id'])
+        self.assertEqual(estado['rondas_completadas'], 0)
+        self.assertEqual(self.sesion.estado._intento, 0)
+        self.assertEqual(self.sesion.estado._jugada_neo, 'piedra')
+        self.sesion.estado.elegir = Mock(side_effect=AssertionError('No cambiar eleccion'))
+        self.sesion.robot.decir = Mock()
+        self.c.comando('continuar')
+        estado = self.fase('capturando')
+        self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+        self.assertEqual(self.fase('entre_rondas')['marcador'], {'neo': 0, 'jugador': 1})
+
+    def test_comentario_sin_audio_no_se_confirma_como_hablado_ni_pausa(self):
+        respuestas, errores = [], []
+        self.c.on_agent_result = respuestas.append
+        self.c.on_error = errores.append
+        self.sesion.estado.iniciar()
+        self.sesion.publicar()
+        estado = self.fase('entre_rondas')
+        self.sesion.robot.decir = Mock(side_effect=ErrorPuenteVoz('TIMEOUT_COMENTARIO_SIMULADO'))
+        self.c.enviar({'type': 'agent', 'context_version': estado['version'],
+                       'request_id': 8, 'reply': {'accion': 'hablar', 'texto': 'Buena jugada.'}})
+        esperar(lambda: bool(errores))
+        esperar(lambda: bool(respuestas))
+        self.assertEqual(self.c.snapshot()['fase'], 'entre_rondas')
+        self.assertFalse(respuestas[0]['accepted'])
+        self.assertEqual(respuestas[0]['reason'], 'voz_no_reproducida')
+
+    def test_error_de_movimiento_conserva_la_pausa_del_puente(self):
+        errores = []
+        self.c.on_error = errores.append
+        self.sesion.robot.mostrar = Mock(side_effect=RuntimeError('FALLO_MOTOR_SIMULADO'))
+        self.c.comando('iniciar')
+        estado = self.fase('capturando')
+        self.c.enviar({'type': 'vision', 'capture_id': estado['capture_id'], 'gesture': 'papel'})
+        esperar(lambda: bool(errores))
+        estado = self.fase('pausa')
+        self.assertEqual(estado['motivo_pausa'], 'fallo_puente')
+        self.assertEqual(estado['rondas_completadas'], 1)
+        self.assertEqual(estado['marcador'], {'neo': 0, 'jugador': 1})
 
     def test_revela_la_eleccion_previa_aunque_pierda_contra_el_humano(self):
         from unittest.mock import Mock

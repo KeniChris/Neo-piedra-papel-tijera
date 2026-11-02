@@ -217,6 +217,8 @@ Es el micrófono de la laptop. Espera a que Neo termine antes de hablar.
 Para conversar di «Neo» seguido de la pregunta; también acepta comandos cortos
 como «empezar», «siguiente» y «pausa». La transcripción usa Google, como en
 el código recibido. Si falla, **T** permite escribir sin micrófono.
+«Continuemos» y «sigamos» tambien son comandos locales: no requieren decir
+Neo ni esperar a Codex. Las negaciones no se convierten en ordenes de jugar.
 
 Opciones útiles: `--camara 1`, `--rondas 5`, `--espera 5` o `--sin-comentarios`.
 Esta última desactiva los comentarios espontáneos entre rondas; la IA sigue
@@ -234,6 +236,8 @@ respondiendo cuando se le pregunta.
 | Puerto local 5005 ocupado | Cierra el servidor anterior o elige otro puerto libre; evita 5006 y 5007 si usas el perfil de examen |
 | Falta CLI o sesión | En la terminal donde funciona Codex: `codex --version` y `codex login status` |
 | La respuesta tarda | Mira la latencia; los comandos exactos y teclas evitan esperar al modelo |
+| TimeoutError en la voz OpenAI despues de puntuar | Conserva la ronda y el marcador. Usa siguiente/continuemos o N; el texto del anuncio no confirma que se haya reproducido audio. |
+| Codex excedio el tiempo de espera | Puedes seguir con los comandos locales y N/C; para conversar, haz una peticion nueva cuando quieras. |
 | MediaPipe no tiene solutions.hands o falta cv2 | Ejecuta preparar_vision.py y lanza con .venv_neo\Scripts\python.exe |
 | Cámara ocupada | Cierra otros programas que la estén usando o cambia `--camara` |
 | No carga una edición del Markdown | Revisa la ruta que se imprime y si existe `NEO_POLITICAS`; espera una consulta nueva |

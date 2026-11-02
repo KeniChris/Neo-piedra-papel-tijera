@@ -172,6 +172,7 @@ class Conversador:
         with self.condicion:
             self.request_id += 1
             self.pendiente = None
+            self.error = ''
 
     def confirmacion(self, dato):
         with self.condicion:
@@ -182,7 +183,10 @@ class Conversador:
             if actual and (partida == 0 or partida == actual['partida']):
                 self.cerebro.confirmar_hablado(usuario, dato.get('spoken', ''))
         elif not dato.get('accepted'):
-            print('Respuesta de IA descartada: el contexto de la partida cambio.')
+            if dato.get('reason') == 'voz_no_reproducida':
+                print('La respuesta de IA no se completo en audio; no se guardo como hablada.')
+            else:
+                print('Respuesta de IA descartada: el contexto de la partida cambio.')
 
     def _vigente(self, request_id, estado):
         actual = self.conexion.snapshot()
@@ -208,10 +212,12 @@ class Conversador:
             try:
                 respuesta = self.cerebro.responder(estado, texto, evento)
             except ErrorIA as error:
-                self.error = str(error)
-                print('IA NO DISPONIBLE:', self.error)
+                vigente = self._vigente(request_id, estado)
                 with self.condicion:
                     self.en_curso = False
+                    if vigente and request_id == self.request_id:
+                        self.error = str(error)
+                        print('IA NO DISPONIBLE:', self.error)
                 continue
             with self.condicion:
                 self.en_curso = False
@@ -249,7 +255,10 @@ def normalizar(texto):
 COMANDOS = {
     'empezar': 'iniciar', 'empieza': 'iniciar', 'comenzar': 'iniciar',
     'vamos a jugar': 'iniciar', 'siguiente': 'continuar', 'continuar': 'continuar',
-    'continua': 'continuar', 'reanudar': 'continuar', 'pausa': 'pausar',
+    'continua': 'continuar', 'continuemos': 'continuar', 'sigamos': 'continuar',
+    'seguimos': 'continuar', 'sigue': 'continuar', 'otra ronda': 'continuar',
+    'siguiente por favor': 'continuar', 'vamos con la siguiente': 'continuar',
+    'reanudar': 'continuar', 'pausa': 'pausar',
     'pausar': 'pausar', 'espera': 'pausar', 'para': 'pausar',
     'reglas': 'reglas', 'marcador': 'marcador'
 }

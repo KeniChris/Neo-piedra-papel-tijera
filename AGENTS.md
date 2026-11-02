@@ -14,6 +14,14 @@ voz de pago al cambiar de puerto. El coste se registra como metadatos locales.
 El usuario confirmo una sesion API real, escucho varias voces en su laptop y
 eligio Verse. Aqui las pruebas usan API/SDK simulados y PCM sintetico. La voz
 del NAO fisico sigue sin validar. Distingue esos resultados al informar.
+Un ErrorPuenteVoz durante una frase pausa solo si la fase es cuenta_atras o
+capturando. Si la ronda ya se registro o termino, conserva fase, puntos y
+resultado; informa el fallo y deja disponibles los comandos locales. No
+confirma como hablada una respuesta de IA cuyo audio fallo. Los errores de
+movimiento o salida PCM conservan la pausa del puente. No se reintenta audio
+de pago automaticamente. Continuemos/sigamos son comandos exactos locales;
+no requieren Neo ni una consulta al modelo. Al cancelar IA, descarta tambien
+el error tardio de esa consulta para que no reemplace el estado actual.
 El perfil da 6 s de captura y un reintento automatico; conserva puntos y eleccion
 de Neo, cierra el token anterior antes del aviso y abre otro despues de Ya.
 GestoEstable exige 0.30 s y tres muestras nuevas, reiniciadas por token,

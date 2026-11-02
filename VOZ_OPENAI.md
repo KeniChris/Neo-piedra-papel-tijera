@@ -145,6 +145,23 @@ pruebas de conexion previas, sin consultas de voz, conservan el orden
 9559 -> 9561 -> virtual del perfil. Puedes cerrar y elegir expresamente otra
 salida para una prueba nueva.
 
+Si una frase falla durante la partida por conexion o servicio de voz, el
+programa informa el fallo y conserva los puntos. Si ya habia registrado la
+ronda, mantiene entre_rondas o terminada: usa siguiente/continuemos o N para
+seguir. Si falla antes de captar la mano (por ejemplo en Ya), pausa sin
+abrir captura; continuar/C retoma esa ronda con la misma eleccion de Neo.
+No repite automaticamente la frase fallida ni la cambia a voz nativa.
+El siguiente comando del jugador puede solicitar frases nuevas; las que
+siguen en cache se reproducen localmente. Un fallo de movimiento o de la
+salida PCM sigue provocando la pausa del puente.
+
+El texto `Neo:`/`NEO:` se imprime antes de terminar la solicitud de audio.
+Por eso verlo en consola no confirma que se haya escuchado. Una respuesta
+de IA cuyo audio falla no se incorpora como hablada al historial.
+Un timeout de Codex es independiente de la voz; los comandos locales no
+necesitan esa consulta. Una consulta cancelada no publica despues su error
+como si perteneciera a la ronda actual.
+
 ## Consumo aproximado
 
 Tarifas consultadas el **2 de noviembre de 2026**, en USD, para

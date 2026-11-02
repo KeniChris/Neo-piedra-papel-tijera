@@ -14,6 +14,7 @@ except ImportError:
     import Queue as queue
 
 from estado_juego import ANUNCIOS_JUGADA, AVISO_REINTENTO, EstadoJuego, JUGADAS, texto_hablable
+from audio_neo import ErrorPuenteVoz
 from naoqi_compat import cadena_naoqi
 
 REGLAS = ('Piedra vence a tijera, tijera vence a papel y papel vence a piedra. '
@@ -351,6 +352,29 @@ class Sesion(object):
                 return
             self.ejecutar(dato.get('action'))
 
+    def notificar_fallo_voz(self, error, dato):
+        """Una frase fallida no invalida una ronda ya registrada."""
+        print('VOZ OPENAI NO DISPONIBLE:', str(error))
+        with self.lock:
+            if self.estado.fase in ('cuenta_atras', 'capturando'):
+                self.estado.pausar('fallo_voz')
+            fase = self.estado.fase
+        self.publicar()
+        if fase == 'pausa':
+            ayuda = 'Conservamos la ronda y los puntos. Di continuar o pulsa C para reanudar.'
+        elif fase == 'entre_rondas':
+            ayuda = 'La ronda y el marcador estan guardados. Di siguiente o pulsa N para continuar.'
+        elif fase == 'terminada':
+            ayuda = 'La partida termino; el resultado y el marcador siguen en pantalla.'
+        else:
+            ayuda = 'Los comandos del juego siguen disponibles.'
+        self.enviar({'type': 'error', 'source': 'voz',
+                     'message': 'No se completo la voz OpenAI. ' + ayuda +
+                     ' No se reintento la frase ni se cambio de proveedor.'})
+        if dato.get('type') == 'agent':
+            self.enviar({'type': 'agent_result', 'request_id': dato.get('request_id'),
+                         'accepted': False, 'reason': 'voz_no_reproducida'})
+
     def run(self):
         lector = threading.Thread(target=self.recibir)
         lector.daemon = True
@@ -367,6 +391,8 @@ class Sesion(object):
                 continue
             try:
                 self.procesar(dato)
+            except ErrorPuenteVoz as error:
+                self.notificar_fallo_voz(error, dato)
             except Exception as error:
                 print('Fallo del puente:', type(error).__name__)
                 if getattr(self.robot, 'voz', 'nao_tts') == 'openai':

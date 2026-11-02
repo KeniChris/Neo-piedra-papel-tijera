@@ -143,6 +143,9 @@ un reintento de esa misma ronda con un token nuevo. No repite el balanceo
 del brazo ni cambia la eleccion de Neo. Al agotar los dos intentos, pausa
 conservando la partida y los puntos; di continuar para retomarla.
 Di **«siguiente»** entre rondas o **«continuar»** si se pausó por falta de gesto.
+Tambien acepta **«continuemos»** y **«sigamos»** sin decir Neo: son comandos
+locales y funcionan aunque Codex tarde o falle. No hace falta repetir una
+ronda ya puntuada si falla su anuncio de voz.
 Para preguntas libres, empieza con **«Neo»**. Habla cuando haya terminado su voz.
 
 Con la ventana de cámara activa también puedes usar:
@@ -198,11 +201,14 @@ Con `respaldo_choregraphe: true`, el perfil aplica este orden:
 | Micrófono NAO | Intenta micrófono PC y conserva cámara y voz/control que funcionen. |
 | Micrófono PC | Muestra el fallo y deja teclas/T disponibles. |
 | Cámara PC | Informa el fallo; no genera una imagen de prueba para simular reconocimiento. |
+| Voz OpenAI falla al anunciar un resultado o comentario | Conserva la ronda registrada y el marcador. El texto sigue en consola; di siguiente o pulsa N. La frase fallida no se reintenta automaticamente. |
+| Voz OpenAI falla antes de abrir la captura | Pausa sin captar una jugada ni sumar puntos. Di continuar o pulsa C para reanudar la ronda con la misma eleccion. |
+| Codex excede el tiempo de espera | La conversacion fallo; los comandos locales y N/C siguen disponibles. No cambia a otra IA ni reintenta automaticamente. |
 
 Si la cámara NAO deja de enviar imágenes durante la partida, cambia una vez a
 PC, borra la cuenta de detecciones y solicita pausa. Pulsa C para reintentar
 después de la pausa. El cambio de sensor conserva la sesión y el marcador.
-Si falla el control/voz física durante una partida ya iniciada, conserva la
+Si falla el control del robot o la salida PCM durante una partida ya iniciada, conserva la
 pausa/error del puente; puedes cerrar y lanzar `--virtual` para una demostración
 nueva. El cambio completo al virtual al arrancar inicia una sesión nueva.
 Cerrar normalmente, cancelar o un fallo local de dependencias no dispara el
