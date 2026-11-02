@@ -206,6 +206,21 @@ reintenta automaticamente. Esta comprobacion puede rechazar una lectura
 equivalente que use otra forma de escribir numeros. No garantiza por si sola
 la pronunciacion ni la audibilidad; ambas requieren escuchar el resultado.
 
+El guion se envia como el campo texto_literal de un JSON. El lector recibe
+instrucciones para interpretar solo ese valor, incluidas sus preguntas,
+sin responderlas ni improvisar dialogo. La frase de conexion es «Estoy listo
+para jugar»; el saludo y la personalidad de Naoqi se conservan en la partida.
+Audio y transcripcion se reunen por sus indices de item/contenido antes de
+comparar, incluyendo el cierre response.done sin duplicar sus fragmentos.
+Una parte sin audio o sin transcripcion se rechaza. No se acepta un cambio
+de piedra/papel/tijera, negacion, ganador o puntos por parecido de palabras.
+
+Si aparece «La transcripcion de la voz no coincide», la linea **Detalle seguro
+de lectura** incluye esperado y recibido, con textos acotados y claves API
+ocultas. Ese detalle permite revisar la diferencia; no se guarda en el
+registro de consumo. Un rechazo no demuestra un fallo de los altavoces:
+el PCM todavia no se ha entregado para reproducirlo.
+
 El servicio local escucha solo en `127.0.0.1:5008`, protegido con un token
 efimero. No lo publiques en la red. El SDK Python 2.7 toma el PCM y lo convierte
 a 48 kHz estereo para `qi.Session` / `ALAudioDevice.sendRemoteBufferToOutput`,

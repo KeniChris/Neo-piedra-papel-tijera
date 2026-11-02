@@ -228,6 +228,7 @@ Con `respaldo_choregraphe: true`, el perfil aplica este orden:
 | Cámara PC | Informa el fallo; no genera una imagen de prueba para simular reconocimiento. |
 | Voz OpenAI falla al anunciar un resultado o comentario | Conserva la ronda registrada y el marcador. El texto sigue en consola; di siguiente o pulsa N. La frase fallida no se reintenta automaticamente. |
 | Voz OpenAI falla antes de abrir la captura | Pausa sin captar una jugada ni sumar puntos. Di continuar o pulsa C para reanudar la ronda con la misma eleccion. |
+| La transcripcion de la voz no coincide al arrancar | El audio se rechazo antes de enviarlo al NAO. Revisa Detalle seguro de lectura (esperado/recibido); no confirma un fallo de altavoces. |
 | Codex excede el tiempo de espera | La conversacion fallo; los comandos locales y N/C siguen disponibles. No cambia a otra IA ni reintenta automaticamente. |
 
 Si la cámara NAO deja de enviar imágenes durante la partida, cambia una vez a

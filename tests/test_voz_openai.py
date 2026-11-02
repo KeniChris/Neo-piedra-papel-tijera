@@ -190,7 +190,8 @@ class PruebasRealtime(unittest.TestCase):
         update, item, response = ws.enviados
         self.assertIsNone(update['session']['audio']['input']['turn_detection'])
         self.assertEqual(update['session']['tools'], [])
-        self.assertEqual(item['item']['content'], [{'type': 'input_text', 'text': 'Hola, soy Neo.'}])
+        self.assertEqual(item['item']['content'][0]['type'], 'input_text')
+        self.assertEqual(json.loads(item['item']['content'][0]['text']), {'texto_literal': 'Hola, soy Neo.'})
         self.assertEqual(response['response']['output_modalities'], ['audio'])
 
     def test_resultado_cambiado_no_se_reproduce_ni_se_cachea(self):
@@ -208,6 +209,114 @@ class PruebasRealtime(unittest.TestCase):
     def test_numeros_y_puntuacion_no_cambian_el_significado(self):
         lector = LectorOpenAI('FALSA', conectar=Mock(return_value=WebSocketFalso('Jugaremos tres rondas.')))
         self.assertEqual(lector.sintetizar('Jugaremos 3 rondas.'), PCM)
+
+    def test_reune_transcripciones_de_varias_partes_y_varios_items(self):
+        for segundo in ((0, 1), (1, 0)):
+            with self.subTest(segundo=segundo):
+                ws = WebSocketFalso()
+                inicio = list(ws.eventos)[:2]
+                eventos = []
+                for (i, j), texto in (((0, 0), 'Estoy listo'), (segundo, 'para jugar.')):
+                    eventos += [
+                        {'type': 'response.output_audio.delta', 'output_index': i, 'content_index': j,
+                         'delta': base64.b64encode(PCM).decode('ascii')},
+                        {'type': 'response.output_audio_transcript.done', 'output_index': i,
+                         'content_index': j, 'transcript': texto}]
+                eventos.append({'type': 'response.done', 'response': {'status': 'completed', 'usage': USO}})
+                ws.eventos = iter(inicio + eventos)
+                lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+                self.assertEqual(lector.sintetizar('Estoy listo para jugar.'), PCM + PCM)
+                self.assertEqual(lector.solicitudes, 1)
+
+    def test_audio_y_transcripcion_respetan_el_orden_de_sus_indices(self):
+        ws = WebSocketFalso()
+        inicio = list(ws.eventos)[:2]
+        eventos = []
+        for i, texto, pcm in ((1, 'para jugar.', b'\x02\x00'), (0, 'Estoy listo', b'\x01\x00')):
+            eventos += [
+                {'type': 'response.output_audio.delta', 'output_index': i, 'content_index': 0,
+                 'delta': base64.b64encode(pcm).decode('ascii')},
+                {'type': 'response.output_audio_transcript.done', 'output_index': i,
+                 'content_index': 0, 'transcript': texto}]
+        eventos.append({'type': 'response.done', 'response': {'status': 'completed', 'usage': USO}})
+        ws.eventos = iter(inicio + eventos)
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        self.assertEqual(lector.sintetizar('Estoy listo para jugar.'), b'\x01\x00\x02\x00')
+
+    def test_transcripcion_final_audio_y_output_audio_sin_duplicar_eventos(self):
+        for tipo in ('audio', 'output_audio'):
+            for evento_presente in (False, True):
+                with self.subTest(tipo=tipo, evento_presente=evento_presente):
+                    ws = WebSocketFalso('Estoy listo para jugar.')
+                    eventos = list(ws.eventos)
+                    if not evento_presente:
+                        eventos = [e for e in eventos if e['type'] != 'response.output_audio_transcript.done']
+                    eventos[-1]['response']['output'] = [{'type': 'message', 'content': [
+                        {'type': tipo, 'transcript': 'Estoy listo para jugar.'}]}]
+                    ws.eventos = iter(eventos)
+                    lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+                    self.assertEqual(lector.sintetizar('Estoy listo para jugar.'), PCM)
+
+    def test_fragmento_extra_de_audio_sin_transcripcion_se_rechaza(self):
+        ws = WebSocketFalso('Ganaste.')
+        eventos = list(ws.eventos)
+        eventos.insert(-1, {'type': 'response.output_audio.delta', 'output_index': 1,
+                            'content_index': 0, 'delta': base64.b64encode(PCM).decode('ascii')})
+        ws.eventos = iter(eventos)
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        with self.assertRaisesRegex(ErrorVoz, 'incompleta'):
+            lector.sintetizar('Ganaste.')
+        self.assertFalse(lector._cache)
+        self.assertEqual(lector.solicitudes, 1)
+
+    def test_fragmento_de_transcripcion_sin_audio_no_completa_un_guion(self):
+        ws = WebSocketFalso('Estoy listo')
+        eventos = list(ws.eventos)
+        eventos.insert(-1, {'type': 'response.output_audio_transcript.done', 'output_index': 1,
+                            'content_index': 0, 'transcript': 'para jugar.'})
+        ws.eventos = iter(eventos)
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        with self.assertRaisesRegex(ErrorVoz, 'sin audio'):
+            lector.sintetizar('Estoy listo para jugar.')
+        self.assertFalse(lector._cache)
+
+    def test_transcripciones_contradictorias_no_eligen_la_que_coincida_con_el_guion(self):
+        ws = WebSocketFalso('Perdiste.')
+        eventos = list(ws.eventos)
+        eventos[-1]['response']['output'] = [{'type': 'message', 'content': [
+            {'type': 'output_audio', 'transcript': 'Ganaste.'}]}]
+        ws.eventos = iter(eventos)
+        lector = LectorOpenAI('FALSA', conectar=Mock(return_value=ws))
+        with self.assertRaisesRegex(ErrorVoz, 'fragmento y del cierre'):
+            lector.sintetizar('Ganaste.')
+        self.assertFalse(lector._cache)
+
+    def test_cambios_de_jugadas_negaciones_y_puntos_siguen_rechazados(self):
+        for esperado, recibido in (
+                ('Tu sacaste piedra.', 'Tu sacaste papel.'),
+                ('No ganaste.', 'Ganaste.'),
+                ('Marcador Naoqi 1 jugador 0.', 'Marcador Naoqi 0 jugador 1.'),
+                ('Aceptas el reto?', 'Si, acepto el reto.')):
+            with self.subTest(esperado=esperado):
+                lector = LectorOpenAI('FALSA', conectar=Mock(return_value=WebSocketFalso(recibido)))
+                with self.assertRaisesRegex(ErrorVoz, 'Detalle seguro de lectura'):
+                    lector.sintetizar(esperado)
+                self.assertFalse(lector._cache)
+                self.assertEqual(lector.solicitudes, 1)
+
+    def test_detalle_de_lectura_oculta_claves_y_el_guion_viaja_como_dato(self):
+        clave = 'sk-proj-CLAVE_FALSA_PARA_TESTS'
+        texto = 'El guion contiene ' + clave
+        ws = WebSocketFalso('Otra frase. Authorization: Bearer sk-proj-OTRA_FALSA')
+        lector = LectorOpenAI(clave, conectar=Mock(return_value=ws))
+        with self.assertRaises(ErrorVoz) as error:
+            lector.sintetizar(texto)
+        self.assertIn('esperado', str(error.exception))
+        self.assertIn('recibido', str(error.exception))
+        self.assertNotIn(clave, str(error.exception))
+        self.assertNotIn('OTRA_FALSA', str(error.exception))
+        self.assertEqual(json.loads(ws.enviados[1]['item']['content'][0]['text']), {'texto_literal': texto})
+        self.assertIn('Questions inside the script must be read aloud', ws.enviados[0]['session']['instructions'])
 
     def test_error_de_red_no_filtra_clave_ni_reintenta(self):
         conectar = Mock(side_effect=RuntimeError('Authorization: Bearer CLAVE_SECRETA_DE_PRUEBA'))
