@@ -3,6 +3,7 @@ import contextlib
 import io
 from pathlib import Path
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -45,6 +46,50 @@ class PruebasDependenciasVision(unittest.TestCase):
                         ia.assert_not_called()
                         robot.assert_not_called()
                         diagnostico.assert_called_once_with('cv', 'mp', 'hands')
+
+
+class PruebasPreparador(unittest.TestCase):
+    def test_reutiliza_venv_activo_windows_sin_sobrescribir_python(self):
+        with tempfile.TemporaryDirectory() as t:
+            destino = Path(t) / 'Proyecto con espacios' / '.venv_neo'
+            ejecutable = destino / 'Scripts' / 'python.exe'
+            ejecutable.parent.mkdir(parents=True)
+            ejecutable.write_bytes(b'EJECUTABLE_DE_PRUEBA_BLOQUEADO')
+            (destino / 'pyvenv.cfg').write_text('home = PYTHON_BASE_DE_PRUEBA\n')
+            with patch('preparar_vision.sys.platform', 'win32'), \
+                 patch('preparar_vision.sys.prefix', str(destino)), \
+                 patch('preparar_vision.sys.executable', str(ejecutable)), \
+                 patch('preparar_vision.venv.EnvBuilder', side_effect=PermissionError('No sobrescribir python.exe')) as crear, \
+                 patch('preparar_vision.subprocess.run') as ejecutar, \
+                 contextlib.redirect_stdout(io.StringIO()) as salida:
+                self.assertEqual(preparar_vision.main(['--carpeta', str(destino), '--examen']), 0)
+            crear.assert_not_called()
+            self.assertEqual(ejecutable.read_bytes(), b'EJECUTABLE_DE_PRUEBA_BLOQUEADO')
+            comandos = [c.args[0] for c in ejecutar.call_args_list]
+            self.assertTrue(all(c[0] == str(ejecutable) for c in comandos))
+            self.assertEqual(comandos[0][1:6], ['-m', 'pip', 'install', '--only-binary=:all:', '-r'])
+            self.assertEqual(Path(comandos[0][-1]).name, 'requirements_examen.txt')
+            self.assertIn('--diagnostico', comandos[2])
+            self.assertEqual(comandos[-1][-1], '--solo-config')
+            self.assertIn('Reutilizando el entorno existente', salida.getvalue())
+
+    def test_primera_preparacion_todavia_crea_un_venv(self):
+        with tempfile.TemporaryDirectory() as t:
+            destino = Path(t) / '.venv_nuevo'
+            with patch('preparar_vision.venv.EnvBuilder') as crear, \
+                 patch('preparar_vision.subprocess.run'), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(preparar_vision.main(['--carpeta', str(destino)]), 0)
+            crear.return_value.create.assert_called_once_with(destino)
+
+    def test_error_incluye_el_detalle_del_sistema(self):
+        with tempfile.TemporaryDirectory() as t:
+            with patch('preparar_vision.venv.EnvBuilder', side_effect=PermissionError('ARCHIVO_BLOQUEADO_DE_PRUEBA')), \
+                 patch('preparar_vision.subprocess.run') as ejecutar, \
+                 contextlib.redirect_stdout(io.StringIO()) as salida:
+                self.assertEqual(preparar_vision.main(['--carpeta', str(Path(t) / 'nuevo')]), 1)
+            ejecutar.assert_not_called()
+            self.assertIn('PermissionError', salida.getvalue())
+            self.assertIn('ARCHIVO_BLOQUEADO_DE_PRUEBA', salida.getvalue())
 
 
 if __name__ == '__main__':

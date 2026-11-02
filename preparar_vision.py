@@ -32,7 +32,15 @@ def main(argv=None):
     for nombre in ('PYTHONPATH', 'PYTHONHOME'):
         entorno.pop(nombre, None)
     try:
-        venv.EnvBuilder(with_pip=True, clear=False).create(destino)
+        if (destino / 'pyvenv.cfg').is_file() and python_vision.is_file():
+            # Windows bloquea el ejecutable mientras se usa. Actualizar las
+            # dependencias no requiere volver a copiar el interprete del venv.
+            print('Reutilizando el entorno existente; actualizando dependencias.', flush=True)
+        elif destino == Path(sys.prefix).resolve():
+            print('El entorno activo esta incompleto. Prepara otra carpeta con --carpeta desde el Python base.')
+            return 1
+        else:
+            venv.EnvBuilder(with_pip=True, clear=False).create(destino)
         requisitos = 'requirements_examen.txt' if args.examen else 'requirements_vision.txt'
         subprocess.run([str(python_vision), '-m', 'pip', 'install', '--only-binary=:all:',
                         '-r', str(CARPETA / requisitos)], check=True, env=entorno)
@@ -47,6 +55,7 @@ def main(argv=None):
                            cwd=str(CARPETA), check=True, env=entorno)
     except (OSError, subprocess.CalledProcessError) as error:
         print('No se completo la preparacion:', type(error).__name__)
+        print('Detalle:', str(error))
         print('Conserva el error de instalacion o diagnostico que aparece arriba.')
         return 1
     except KeyboardInterrupt:

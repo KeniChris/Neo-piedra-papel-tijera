@@ -36,6 +36,18 @@ python preparar_vision.py --examen
 .\.venv_neo\Scripts\python.exe probar_voz.py --solo-config
 ```
 
+El preparador reutiliza un entorno existente que tenga `pyvenv.cfg` y su
+interprete. Tambien puede ejecutarse con `(.venv_neo)` activo en PowerShell;
+actualiza dependencias sin intentar sobrescribir el Python que estas usando.
+Si una version anterior muestra `PermissionError` al preparar ese mismo entorno,
+puedes instalar directamente desde la terminal donde ya esta activo:
+
+```powershell
+python -m pip install --only-binary=:all: -r requirements_examen.txt
+python -m pip check
+python probar_voz.py --solo-config
+```
+
 Esos pasos instalan/comprueban bibliotecas; no hacen consultas de pago. Cuando
 tengas saldo y clave, escucha una frase:
 
