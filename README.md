@@ -72,12 +72,6 @@ micrófono se bloquea mientras habla Naoqi para evitar que responda a su propia 
 | T | Escribir un mensaje |
 | Esc | Cerrar el juego |
 
-La captura dura seis segundos y permite un reintento automático. Un gesto
-inválido mantiene la ronda y el marcador. Los empates consumen una ronda válida.
-Al finalizar, Naoqi celebra su victoria u ofrece la mano abierta durante diez
-segundos si gana el jugador. La pose de tijera es simbólica: la mano del NAO
-abre y cierra como conjunto.
-
 ## Configuración
 
 `config/naoqi.json` contiene el perfil de ejecución. Para guardar ajustes
@@ -101,10 +95,6 @@ Copy-Item .\config\naoqi.json .\config\naoqi.local.json
 | `puerto_voz` | Servicio local de voz OpenAI, 5008 |
 | `voz`, `voz_openai` | `nao_tts` u `openai`, y voz `verse` |
 
-Los puertos locales deben ser distintos. Si 5005 está ocupado, cierra la
-sesión anterior o usa `--puerto 5015`. El programa detiene sus procesos al salir.
-Si usas micrófonos NAO, permite el retorno hacia el puerto de callback de la
-laptop en el firewall de tu red.
 
 ## Personalidad y respuestas
 
