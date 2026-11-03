@@ -1,155 +1,20 @@
-# Contexto para continuar las pruebas de Naoqi
+# Naoqi
 
-El usuario pidio renombrar el personaje a Naoqi y hacerlo competitivo y
-gracioso. Se conservan nombres de archivos, claves de estado y cabeceras
-NEO por compatibilidad. personalidad_naoqi.py centraliza los textos; el
-perfil usa un solo saludo fijo (saludo_ia false), sin anunciar la tecnologia
-de voz. Las preguntas sobre su origen se responden honestamente.
-El usuario retiro la palabra de activacion: el microfono PC/NAO procesa las
-frases transcritas sin exigir Naoqi ni alias. Nao/Naoqi/Naoki/Naoji/Naoqui
-siguen siendo prefijos opcionales para comandos. Conserva los bloqueos de
-voz por generacion/token antes y despues de transcribir para no procesar
-su propia voz. Las fases del juego siguen limitando cuando conversa la IA.
-Las entradas vacias no deben generar consultas. No restaures el requisito
-de nombre en escuchar_fuente; requiere_nombre queda solo para compatibilidad.
-El usuario pidio mute manual: V o clic en el boton MIC de la camara alternan
-microfono_silenciado. Invalida el token al silenciar y reactivar, conserva el
-bloqueo mientras habla el robot y descarta PCM PC acumulado al volver a escuchar.
-El control es del microfono; las teclas/texto y la salida de voz siguen activos.
-Una frase nueva no invalida la respuesta de IA en curso: conserva una sola
-pendiente y espera agent_result antes de consultar la siguiente. Solo comandos
-directos, cierre o cambios de estado invalidan la respuesta. Empecemos el juego,
-juguemos y perdon/okay/comencemos se resuelven localmente sin IA; no conviertas
-negaciones en ordenes. Los errores del puente tambien deben confirmar rechazo
-de la peticion de agente para liberar la espera.
-Al cerrar, Conversador cancela Codex y espera al hilo. CodexLocal comprueba
-cancelacion durante communicate, termina y espera solo sus procesos, y limpia
-su TemporaryDirectory con ignore_cleanup_errors para bloqueos Windows residuales.
-No mates procesos Codex ajenos ni borres carpetas Temp de otros programas.
-El usuario ya obtuvo NAOQI_OK en el NAO fisico con puerto 9561; la primera
-frase OpenAI fue rechazada por no coincidir la transcripcion. No se confirmo
-audibilidad. El lector ahora reune audio/transcripcion por output_index y
-content_index; no debe conservar solo el ultimo fragmento ni duplicar la
-transcripcion que aparece de nuevo en response.done. Cada parte necesita
-audio y transcripcion. Se conserva la igualdad de palabras normalizadas:
-no aceptes cambios de jugada, negacion, ganador ni puntuacion por similitud.
-El texto viaja en JSON texto_literal con instrucciones de lectura, sin el
-rol conversacional del personaje. FRASE_PRUEBA es una afirmacion breve.
-Si falla, Detalle seguro de lectura muestra esperado/recibido acotados y con
-la clave activa, valores Bearer y sk-... ocultos. No registres esos textos
-en el fichero de uso ni reintentes la generacion de pago automaticamente.
-agente_juego.py usa SystemRandom y mezcla 50% exploracion con frecuencias
-suavizadas o transiciones de rondas ya confirmadas. No hay orden fijo ni
-modelo preentrenado; elige antes de captar la mano actual y reinicia por
-partida. No prometas precision con 3/5 jugadas ni acceso al reloj.
-El cierre depende del marcador final, una vez por partida. Si gana Naoqi,
-se solicita un estribillo original cantado y se ejecuta una celebracion breve;
-si pierde, ofrece la misma pose de papel con mano abierta durante diez
-segundos y retorna a StandInit en finally. El usuario autorizo esos gestos.
-Reutiliza angulos y velocidades existentes; no aprietes la mano de la persona
-ni detectes un apreton inexistente. Pausa/desconexion interrumpen la espera.
-La fase cierre bloquea una revancha hasta terminar. Los motores siguen
-desactivados por defecto. La entonacion musical OpenAI y los nuevos gestos
-fisicos siguen pendientes de escucha/ensayo; los tests usan PCM y SDK falsos.
-Voz cantada usa un estilo validado y cache separada. Las dos frases finales
-se preparan al arrancar con API; si fallan, se marca esa frase para no repetir
-automaticamente el cargo. La partida sigue disponible y mantiene el cierre.
+La entrada del juego es `jugar.py`. `instalar.py` prepara `.venv_neo`.
 
-Lee `EXAMEN_NAO_V6.md`, `PRUEBAS_CHOREGRAPHE.md` y `POLITICAS_NEO.md` antes de cambiar el flujo.
-Lee tambien `VOZ_OPENAI.md` para cambiar la salida de voz. El usuario autorizo
-sustituir el audio de Gemini por OpenAI manteniendo Codex/Luna como cerebro.
-La opcion --voz openai usa Realtime gpt-realtime-2.1-mini y verse; no se pasa
-ese modelo a /v1/audio/speech. voz_openai.py es Python 3; audio_neo.py debe
-conservar Python 2.7. La clave se pide oculta o se toma de OPENAI_API_KEY,
-no se guarda ni se hereda al SDK/vision/Codex. El SDK recibe solo token local
-efimero y PCM. En el fisico sale por qi.Session/ALAudioDevice; en el virtual
-sale por PyAudio en PC. No requiere ALTextToSpeech en modo OpenAI fisico.
-No cambies el perfil nativo a pago silenciosamente. No reintentes consultas de
-voz de pago al cambiar de puerto. El coste se registra como metadatos locales.
-El usuario confirmo una sesion API real, escucho varias voces en su laptop y
-eligio Verse. Aqui las pruebas usan API/SDK simulados y PCM sintetico. La voz
-del NAO fisico sigue sin validar. Distingue esos resultados al informar.
-Un ErrorPuenteVoz durante una frase pausa solo si la fase es cuenta_atras o
-capturando. Si la ronda ya se registro o termino, conserva fase, puntos y
-resultado; informa el fallo y deja disponibles los comandos locales. No
-confirma como hablada una respuesta de IA cuyo audio fallo. Los errores de
-movimiento o salida PCM conservan la pausa del puente. No se reintenta audio
-de pago automaticamente. Continuemos/sigamos son comandos exactos locales;
-no requieren Naoqi ni una consulta al modelo. Al cancelar IA, descarta tambien
-el error tardio de esa consulta para que no reemplace el estado actual.
-El perfil da 6 s de captura y un reintento automatico; conserva puntos y eleccion
-de Naoqi, cierra el token anterior antes del aviso y abre otro despues de Ya.
-GestoEstable exige 0.30 s y tres muestras nuevas, reiniciadas por token,
-perdida de mano o hueco largo. La guarda de pinza se aplica despues de comprobar
-el puno. No rebajes la deteccion de MediaPipe sin evaluar imagenes reales.
-La vista muestra landmarks, gesto, intento y tiempo. El usuario puede revisar
-el puno antes de iniciar. La mejora geometrica se prueba con landmarks sinteticos;
-el acierto con su camara y postura debe comprobarse. Los anuncios de resultado
-y marcador se envian en un solo bloque para evitar tres consultas de voz.
-El usuario ya obtuvo una respuesta real con Codex y `gpt-6-luna` (5282 ms).
-El usuario confirma que --solo-camara funciona. No equivale a medir precision.
-Sesion.revelar_jugada anuncia el nombre corto mientras ejecuta la pose original
-si --movimientos esta activado. Siempre usa la eleccion fijada antes de captar
-la mano; no es prediccion ni respuesta ganadora adaptada. Los tres nombres se
-preparan en cache con el resto de frases OpenAI (tres generaciones breves mas).
-No introduzcas poses de dedos independientes: RHand solo abre/cierra el conjunto.
-Tijera sigue siendo simbolica con mano abierta y brazo mas elevado. No cambies
-los angulos ni actives motores por defecto. El NAO fisico sigue sin validar.
-El usuario no tendra acceso al robot fisico hasta el examen. Choregraphe es
-2.8.7.4-win64-vs2015, robot NAO V6 y puerto fisico confirmado por el usuario
-9559. El proyecto del companero probado con NAO usa 9561 en su .env (aunque
-su config.py tiene 9559 por defecto). El perfil intenta 9559 y despues 9561
-antes del virtual, solo ante codigo 70 y con respaldo activado. La IP fisica
-se pide al ejecutar; no se copia la IP privada ni las credenciales del ZIP.
+## Conversación
 
-`probar_choregraphe.py` es Python 3 y lanza el intérprete NAOqi configurado.
-`comprobar_naoqi.py`, `robot_server_ia.py`, `sensores_nao.py`, `naoqi_compat.py` y `estado_juego.py` deben conservar
-compatibilidad con Python 2.7. El intérprete del SDK original era
-`C:\Python27\python.exe`. Copia IP y puerto del destino real; no los adivines.
-Los formatos de struct deben ser bytes: b'P' para calcsize y b'<%dh' % muestras
-para PCM. Con unicode_literals los formatos sin b fallan en el SDK Python 2;
-tests/test_naoqi_compat.py reproduce esa restriccion con un doble estricto.
-El puerto virtual cambio de 62213 a 61778. El usuario ya obtuvo PROXY_OK y
-NAOQI_OK en 127.0.0.1:61778 con el SDK real de Python 2.7. Se corrigio el paso
-de Unicode al SDK clasico con cadena_naoqi. No pases Unicode directamente
-a ALProxy bajo Python 2. El intento --vision fallo al cargar OpenCV/MediaPipe
-en su Python 3.11; preparar_vision.py crea .venv_neo con versiones fijadas.
+- `POLITICAS_NEO.md` define las respuestas del personaje y se recarga por consulta.
+- Conserva el nombre Naoqi, el humor competitivo y respetuoso y las respuestas breves en español.
+- El micrófono acepta peticiones sin palabra de activación; V y el botón MIC lo silencian.
+- Codex usa `gpt-6-luna`; la salida OpenAI usa Realtime y la voz Verse.
+- El estado de Python es la autoridad del juego. El modelo solo propone acciones validadas.
+- Mantén la elección del robot antes de la captura humana y los bloqueos por versión y token.
 
-Las políticas se recargan por consulta. Las reglas y el marcador pertenecen
-a Python. No introduzcas puntos, articulaciones o comandos de sistema en la
-interfaz del modelo. Los clientes ejecutan solo acciones validadas para la
-fase y versión actuales. Naoqi elige antes de la captura; no predice la jugada.
+## Mantenimiento
 
-La visión recibida utiliza la webcam de la laptop y MediaPipe solutions.hands.
-El lanzador anterior mantiene fuentes PC por defecto. iniciar_examen.py usa
-config/neo_examen.json: camara y microfono NAO, TTS nativo, Luna, tres rondas
-y movimientos desactivados. sensores_nao.py usa ALVideoDevice y ALAudioDevice;
-sensores_cliente.py entrega imagenes y PCM al cliente Python 3. El retorno
-de audio requiere acceso del robot al broker de la laptop (callback 5007).
-Los puentes HTTP/control son locales; no publiques sus puertos en la red.
-El token de sensores es efimero y no se guarda. El usuario autorizo respaldo
-con Choregraphe cuando falle el fisico. El perfil activa respaldo_choregraphe:
-sensores NAO fallidos se intentan con PC; si falla el destino al arrancar
-(codigo 70), se agotan los puertos fisicos configurados y se intenta una vez
-el virtual 127.0.0.1 con fuentes PC. Se pide
-el puerto virtual actual si falta; no se supone que siga siendo 61778.
---virtual permite ensayar ese respaldo directamente. No se cambia de destino
-tras cancelacion, cierre normal ni fallos locales/IA. El HUD y hello indican
-el entorno y fuentes activas. Un cambio de camara durante la partida pide
-pausa y reinicia detecciones; no se transfieren puntos entre sesiones nuevas.
-El lanzador manual sigue estricto salvo --respaldo-pc. No se ha integrado
-el agente Gemini mostrado en el chat. El virtual puede mostrar voz como texto.
-El modelo de anticipacion propuesto previamente no esta implementado ni
-entrenado: la clasificacion actual usa reglas sobre los puntos de la mano.
-No afirmes haber validado la camara, microfonos ni voz del NAO fisico sin
-comprobarlos. La integracion de software tiene pruebas con SDK simulado y PCM
-sintetico; la observacion de los companeros corresponde a otro programa.
-Un say sin error no acredita audibilidad ni paquetes PCM acreditan transcripcion.
-No hay conexion al reloj.
-El modo `--simular` solo imprime mensajes: no equivale a probar Choregraphe.
-Los tests del SDK y CLI usan dobles de prueba claramente identificados.
-
-Ejecuta `python -m unittest discover -s tests -v` tras cambios en el protocolo,
-el cargador o el lanzador. Registra por separado lo comprobado con dobles,
-con Choregraphe y con hardware. No leas ni copies credenciales de Codex.
-Mantén los originales recibidos sin modificar en `originales/`.
+- Conserva Python 2.7 en `conexion_naoqi.py`, `robot_server_ia.py`, `sensores_nao.py`, `audio_neo.py`, `naoqi_compat.py`, `estado_juego.py`, `agente_juego.py` y `personalidad_naoqi.py`.
+- Los formatos `struct` del SDK son bytes; las cadenas pasan por `cadena_naoqi`.
+- Conserva los ángulos y velocidades del robot, la pausa y el regreso a StandInit.
+- La clave API se solicita oculta y solo permanece en el proceso de voz.
+- Cancela y libera únicamente los procesos y recursos creados por esta aplicación.

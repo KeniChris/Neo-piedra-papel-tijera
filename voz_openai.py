@@ -99,7 +99,7 @@ def comprobar_biblioteca():
         if not callable(getattr(websocket, 'create_connection', None)):
             raise ImportError
     except ImportError:
-        raise ErrorVoz('Falta websocket-client. Ejecuta python preparar_vision.py --examen.') from None
+        raise ErrorVoz('Falta websocket-client. Ejecuta python instalar.py.') from None
 
 
 def obtener_clave(preguntar=True):
@@ -367,7 +367,7 @@ class ReproductorPC:
             import pyaudio
             self.modulo = pyaudio
         except ImportError:
-            raise ErrorVoz('La voz en la laptop requiere PyAudio. Ejecuta python preparar_vision.py --examen.') from None
+            raise ErrorVoz('La voz en la laptop requiere PyAudio. Ejecuta python instalar.py.') from None
 
     def reproducir(self, pcm=b''):
         audio = self.modulo.PyAudio()
@@ -477,3 +477,4 @@ class ServicioVoz:
             except ErrorVoz as error:
                 self.frases_cierre_fallidas.add((estilo, texto))
                 print('AVISO: una frase de cierre no se preparo; la partida sigue disponible. ' + str(error), flush=True)
+

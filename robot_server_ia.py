@@ -30,13 +30,13 @@ class Robot(object):
         self.movimientos = movimientos
         self.entorno = entorno
         self.voz = voz
-        self.salida_voz = 'pc' if entorno == 'virtual' and voz == 'openai' else 'nao'
+        self.salida_voz = 'nao'
         self.audio = None
         if not simular:
             from naoqi import ALProxy
             if voz == 'openai':
                 from audio_neo import ClienteVoz, SalidaAudioNAO
-                salida = SalidaAudioNAO(ip, port) if self.salida_voz == 'nao' else None
+                salida = SalidaAudioNAO(ip, port)
                 self.audio = ClienteVoz(puerto_voz, salida=salida)
             ip = cadena_naoqi(ip)
             port = int(port)
@@ -489,27 +489,24 @@ class Sesion(object):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--robot-ip', default='127.0.0.1')
-    parser.add_argument('--robot-port', type=int, default=54743)
+    parser.add_argument('--robot-ip', required=True)
+    parser.add_argument('--robot-port', type=int, default=9561)
     parser.add_argument('--puerto', type=int, default=5005)
     parser.add_argument('--rondas', type=int, choices=(3, 5), default=3)
     parser.add_argument('--espera', type=float, default=6.0)
     parser.add_argument('--reintentos', type=int, choices=(0, 1, 2), default=1)
-    parser.add_argument('--simular', action='store_true', help='Sin NAOqi: solo imprime lo que diria Naoqi.')
     parser.add_argument('--movimientos', action='store_true', help='Activa los movimientos del script original.')
-    parser.add_argument('--entorno', choices=('fisico', 'virtual', 'configurado'), default='configurado')
     parser.add_argument('--voz', choices=('nao_tts', 'openai'), default='nao_tts')
     parser.add_argument('--puerto-voz', type=int, default=5008)
     args = parser.parse_args()
     if not 0.5 <= args.espera <= 10:
         parser.error('--espera debe estar entre 0.5 y 10 segundos.')
-    robot = Robot(args.robot_ip, args.robot_port, args.simular, args.movimientos, args.entorno, args.voz, args.puerto_voz)
+    robot = Robot(args.robot_ip, args.robot_port, False, args.movimientos, 'nao', args.voz, args.puerto_voz)
     servidor = socket.socket()
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     servidor.bind(('127.0.0.1', args.puerto))
     servidor.listen(1)
-    print('Puente local en 127.0.0.1:{} | simulado={} | movimientos={}'.format(
-        args.puerto, args.simular, args.movimientos))
+    print('Puente de juego en 127.0.0.1:{} | movimientos={}'.format(args.puerto, args.movimientos))
     print('NAOqi destino: {}:{}'.format(args.robot_ip, args.robot_port))
     # El lanzador espera esta linea antes de abrir el cliente; no crea una
     # conexion de prueba que dispare un saludo o una sesion de juego extra.
@@ -531,3 +528,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

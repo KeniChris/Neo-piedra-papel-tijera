@@ -92,11 +92,7 @@ class ConexionNeo:
                 tipo = dato.get('type')
                 if tipo == 'hello':
                     self.hello = dato
-                    if dato.get('entorno') == 'virtual':
-                        print('CHOREGRAPHE VIRTUAL conectado: ' + ('voz OpenAI en la laptop.'
-                              if dato.get('voz') == 'openai' else 'voz visible en Robot View/Dialog.'))
-                    else:
-                        print('Robot SIMULADO' if dato.get('simulado') else 'Puente NAOqi conectado')
+                    print('Naoqi conectado')
                     if dato.get('voz') == 'openai':
                         print('Voz generada por OpenAI | salida:', dato.get('salida_voz'))
                 elif tipo == 'state':
@@ -332,3 +328,4 @@ def procesar_texto(texto, conexion, conversador, requiere_nombre=False):
         return conversador.pedir(texto)
     print('Modo SIN IA: solo estan disponibles los comandos del juego.')
     return False
+

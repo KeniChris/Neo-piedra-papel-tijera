@@ -94,7 +94,7 @@ class CerebroNeo:
             except ErrorCodex as error:
                 raise ErrorIA(str(error))
         if self.provider == 'openai' and not self.api_key and transporte is None:
-            raise ErrorIA('Falta OPENAI_API_KEY. Ejecuta primero CONFIGURAR_IA.ps1 y probar_ia.py.')
+            raise ErrorIA('Falta OPENAI_API_KEY para el proveedor API seleccionado.')
 
     def _leer_politicas(self):
         try:
@@ -198,3 +198,4 @@ class CerebroNeo:
         with self.historia_lock:
             self.historia.append({'role': 'user', 'content': usuario[:800]})
             self.historia.append({'role': 'assistant', 'content': hablado[:400]})
+

@@ -35,7 +35,7 @@ def cargar_dependencias():
     return cv2, mp, manos_clase
 
 
-def diagnosticar(cv2, mp, manos_clase):
+def validar_dependencias(cv2, mp, manos_clase):
     print('OpenCV:', getattr(cv2, '__version__', '?'), '|', getattr(cv2, '__file__', '?'))
     print('MediaPipe:', getattr(mp, '__version__', '?'), '|', getattr(mp, '__file__', '?'))
     try:
@@ -47,85 +47,6 @@ def diagnosticar(cv2, mp, manos_clase):
         return 1
     print('VISION_OK: Hands inicializado y fotograma vacio procesado. No se abrio la camara ni se consulto la IA.')
     return 0
-
-
-def probar_solo_camara(cv2, mp, manos_clase, indice='0'):
-    """Vista previa del detector con webcam PC; no crea IA ni conexion NAOqi."""
-    fuente = int(indice) if str(indice).isdigit() else indice
-    cap = None
-    try:
-        cap = cv2.VideoCapture(fuente)
-        if not cap.isOpened():
-            print('No se pudo abrir la webcam para la prueba de gestos.')
-            return 1
-        filtro = GestoEstable()
-        with manos_clase(max_num_hands=1, min_detection_confidence=.7, min_tracking_confidence=.7) as detector:
-            print('SOLO CAMARA PC: muestra puno, palma y tijera. Esc termina; no hay partida ni voz.')
-            while True:
-                ok, frame = cap.read()
-                if not ok:
-                    print('La webcam dejo de entregar imagenes.')
-                    return 1
-                resultado = detector.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                hay_mano = bool(resultado.multi_hand_landmarks)
-                gesto = clasificar(resultado.multi_hand_landmarks[0].landmark) if hay_mano else None
-                estable = filtro.observar(gesto, 'vista_previa')
-                if hay_mano:
-                    mp.solutions.drawing_utils.draw_landmarks(frame, resultado.multi_hand_landmarks[0],
-                                                             mp.solutions.hands.HAND_CONNECTIONS)
-                if frame.shape[1] < 640:
-                    frame = cv2.resize(frame, (640, round(frame.shape[0] * 640 / frame.shape[1])))
-                lineas = ['PRUEBA DE GESTOS - sin partida ni voz',
-                          'Mano: {} | gesto: {}'.format('visible' if hay_mano else 'no detectada', gesto or '--'),
-                          'Confirmado: {} | estabilidad {:.0f}%'.format(estable or '--', filtro.progreso() * 100),
-                          'Puno = piedra | palma = papel | dos dedos = tijera',
-                          'Manten la mano completa en el encuadre | ESC salir']
-                for i, linea in enumerate(lineas):
-                    cv2.putText(frame, linea, (10, 30 + 27 * i), cv2.FONT_HERSHEY_SIMPLEX,
-                                .55, (0, 255, 0), 1)
-                cv2.imshow('Naoqi - prueba de gestos', frame)
-                if cv2.waitKey(1) & 0xFF == 27:
-                    return 0
-    except KeyboardInterrupt:
-        return 130
-    except Exception as error:
-        print('Fallo de la prueba de camara:', type(error).__name__, str(error))
-        return 1
-    finally:
-        if cap is not None:
-            cap.release()
-        cv2.destroyAllWindows()
-
-
-def diagnosticar_fuentes_pc(camara=False, microfono=False, indice='0'):
-    resultado = {}
-    if camara:
-        cap = None
-        try:
-            cv2 = importlib.import_module('cv2')
-            fuente = int(indice) if str(indice).isdigit() else indice
-            cap = cv2.VideoCapture(fuente)
-            ok, frame = cap.read() if cap.isOpened() else (False, None)
-            if not ok or frame is None or not frame.size:
-                raise ErrorVision('La webcam PC no entrego una imagen.')
-            resultado['camara'] = {'activa': True, 'tamano': [int(frame.shape[1]), int(frame.shape[0])]}
-        except Exception as error:
-            resultado['camara'] = {'activa': False, 'error': '{}: {}'.format(type(error).__name__, error)}
-        finally:
-            if cap:
-                cap.release()
-    if microfono:
-        try:
-            import speech_recognition as sr
-            with sr.Microphone() as fuente:
-                audio = sr.Recognizer().record(fuente, duration=0.2)
-            if not audio.frame_data:
-                raise OSError('El microfono PC no entrego muestras.')
-            resultado['microfono'] = {'activo': True, 'bytes_recibidos': len(audio.frame_data)}
-        except Exception as error:
-            resultado['microfono'] = {'activo': False, 'error': '{}: {}'.format(type(error).__name__, error),
-                                     'respaldo': 'teclas y T'}
-    return resultado
 
 
 def escuchar(conexion, conversador, origen='pc', puerto_sensores=5006, estado_microfono=None,
@@ -244,26 +165,19 @@ def main():
     parser.add_argument('--fuente-camara', choices=('pc', 'nao'), default='pc')
     parser.add_argument('--fuente-microfono', choices=('pc', 'nao'), default='pc')
     parser.add_argument('--puerto-sensores', type=int, default=5006)
-    parser.add_argument('--saludo-ia', action='store_true')
     parser.add_argument('--respaldo-pc', action='store_true')
-    parser.add_argument('--sin-ia', action='store_true', help='Solo prueba local de vision y reglas; NO usa un modelo.')
+    parser.add_argument('--sin-ia', action='store_true', help='Juega sin conversacion del modelo.')
     parser.add_argument('--sin-comentarios', action='store_true', help='La IA responde solo cuando el jugador le habla.')
-    parser.add_argument('--diagnostico', action='store_true', help='Comprueba librerias y detector sin camara, Codex ni NAOqi.')
-    parser.add_argument('--solo-camara', action='store_true', help='Prueba gestos con webcam PC sin NAOqi, Codex ni voz.')
     args = parser.parse_args()
     print('Python de vision:', sys.executable)
-    print('Camara: {} | Microfono: {}'.format('PC' if args.solo_camara else args.fuente_camara.upper(),
-          args.fuente_microfono.upper() if args.microfono and not args.solo_camara else 'desactivado'))
+    print('Camara: {} | Microfono: {}'.format(args.fuente_camara.upper(),
+          args.fuente_microfono.upper() if args.microfono else 'desactivado'))
     try:
         cv2, mp, manos_clase = cargar_dependencias()
     except ErrorVision as error:
         print('FALLO DE VISION:', error)
-        print('Prepara el entorno compatible con: python preparar_vision.py')
+        print('Prepara el entorno compatible con: python instalar.py')
         return 1
-    if args.diagnostico:
-        return diagnosticar(cv2, mp, manos_clase)
-    if args.solo_camara:
-        return probar_solo_camara(cv2, mp, manos_clase, args.camara)
     cerebro = None
     if not args.sin_ia:
         try:
@@ -286,12 +200,10 @@ def main():
             conversador = Conversador(conexion, cerebro, comentarios=not args.sin_comentarios)
             print('IA configurada con {}; conexion real pendiente de la primera respuesta.'.format(cerebro.provider))
         else:
-            print('MODO SIN IA: respuestas fijas y reglas locales. No es una demostracion de LLM.')
+            print('Conversacion desactivada. El juego y los controles locales siguen disponibles.')
         if args.microfono:
             threading.Thread(target=escuchar, args=(conexion, conversador, args.fuente_microfono,
                              args.puerto_sensores, estado_microfono, args.respaldo_pc), daemon=True).start()
-        if args.saludo_ia and conversador:
-            conversador.pedir('Presentate en una frase e invita a jugar, sin iniciar la partida.')
 
         def escribir():
             try:
@@ -364,7 +276,7 @@ def main():
                          else 'Vista previa: muestra la mano completa')
             puntos = estado['marcador'] if estado else {'neo': 0, 'jugador': 0}
             if conversador is None:
-                estado_ia = 'SIN IA - prueba de reglas'
+                estado_ia = 'CONVERSACION DESACTIVADA'
             elif conversador.error:
                 estado_ia = 'IA: ERROR - revisa consola'
             elif conversador.en_curso:
@@ -387,13 +299,6 @@ def main():
             if ventana:
                 lineas.insert(6, 'Captura {:.1f}s | intento {}/{} | estable {:.0f}%'.format(
                     ventana['restante'], ventana['attempt'], ventana['attempts'], filtro.progreso() * 100))
-            if conexion.hello.get('simulado'):
-                lineas.append('ROBOT SIMULADO - sin voz ni movimiento fisicos')
-            elif conexion.hello.get('entorno') == 'virtual':
-                lineas.append('CHOREGRAPHE VIRTUAL - sensores PC; voz ' +
-                              ('OpenAI en PC' if conexion.hello.get('voz') == 'openai' else 'como texto'))
-            # QVGA basta para la captura del NAO; amplia solo la vista para
-            # que el estado y las teclas no queden cortados por su anchura.
             if frame.shape[1] < 640:
                 alto_vista = round(frame.shape[0] * 640 / frame.shape[1])
                 frame = cv2.resize(frame, (640, alto_vista))
@@ -436,3 +341,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

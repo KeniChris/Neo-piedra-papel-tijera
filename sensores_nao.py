@@ -24,7 +24,7 @@ except ImportError:
     from urllib.parse import urlsplit, parse_qs
 
 from naoqi_compat import cadena_naoqi, TIPO_TEXTO
-from comprobar_naoqi import FALLO_DESTINO
+from conexion_naoqi import FALLO_DESTINO
 
 RELOJ = getattr(time, 'monotonic', time.time)
 
@@ -336,7 +336,7 @@ def main():
     args = parser.parse_args()
     token = os.environ.get('NEO_SENSORES_TOKEN', '')
     if not token:
-        parser.error('Inicia este proceso mediante probar_choregraphe.py o iniciar_examen.py.')
+        parser.error('Inicia Naoqi mediante jugar.py.')
     sensores, servidor = SensoresNAO(), None
     try:
         sensores.abrir(args.robot_ip, args.robot_port, not args.sin_camara,
@@ -363,3 +363,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

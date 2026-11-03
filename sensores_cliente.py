@@ -20,7 +20,7 @@ class ClienteSensores:
         self.base = 'http://127.0.0.1:{}'.format(int(puerto))
         self.token = token or os.environ.get('NEO_SENSORES_TOKEN', '')
         if not self.token:
-            raise ErrorSensores('Falta la sesion del puente de sensores. Usa iniciar_examen.py.')
+            raise ErrorSensores('Falta la sesion del puente de sensores. Inicia Naoqi con jugar.py.')
 
     def solicitar(self, ruta, limite=262144, metodo='GET'):
         request = urllib.request.Request(self.base + ruta, method=metodo,
@@ -213,3 +213,4 @@ def fuente_audio_nao(sr, cliente):
                 self.stream = None
 
     return FuenteNAO()
+

@@ -42,3 +42,7 @@ diagnosticos_locales/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+
+registros_locales/
+config/naoqi.local.json
