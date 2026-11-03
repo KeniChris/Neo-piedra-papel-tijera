@@ -26,6 +26,18 @@ Al cerrar, Conversador cancela Codex y espera al hilo. CodexLocal comprueba
 cancelacion durante communicate, termina y espera solo sus procesos, y limpia
 su TemporaryDirectory con ignore_cleanup_errors para bloqueos Windows residuales.
 No mates procesos Codex ajenos ni borres carpetas Temp de otros programas.
+El usuario ya obtuvo NAOQI_OK en el NAO fisico con puerto 9561; la primera
+frase OpenAI fue rechazada por no coincidir la transcripcion. No se confirmo
+audibilidad. El lector ahora reune audio/transcripcion por output_index y
+content_index; no debe conservar solo el ultimo fragmento ni duplicar la
+transcripcion que aparece de nuevo en response.done. Cada parte necesita
+audio y transcripcion. Se conserva la igualdad de palabras normalizadas:
+no aceptes cambios de jugada, negacion, ganador ni puntuacion por similitud.
+El texto viaja en JSON texto_literal con instrucciones de lectura, sin el
+rol conversacional del personaje. FRASE_PRUEBA es una afirmacion breve.
+Si falla, Detalle seguro de lectura muestra esperado/recibido acotados y con
+la clave activa, valores Bearer y sk-... ocultos. No registres esos textos
+en el fichero de uso ni reintentes la generacion de pago automaticamente.
 agente_juego.py usa SystemRandom y mezcla 50% exploracion con frecuencias
 suavizadas o transiciones de rondas ya confirmadas. No hay orden fijo ni
 modelo preentrenado; elige antes de captar la mano actual y reinicia por

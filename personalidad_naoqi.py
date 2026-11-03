@@ -3,7 +3,7 @@
 from __future__ import unicode_literals
 
 NOMBRE = 'Naoqi'
-FRASE_PRUEBA = 'Hoy vengo con ganas de ganar. ¿Aceptas el reto?'
+FRASE_PRUEBA = 'Estoy listo para jugar.'
 SALUDO = 'Soy Naoqi. No me vas a ganar tan fácil. Di empezar y lo comprobamos.'
 INVITACION_APRETON = ('Me ganaste. Mi orgullo necesita reiniciarse, pero primero dame la mano. '
                       'Buen duelo, rival.')
